@@ -1,0 +1,14 @@
+# Secrets
+scripts/service-account.json
+scripts/config.yaml
+scripts/*.key.json
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Work files
+scripts/tmp/
+scripts/downloads/

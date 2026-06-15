@@ -1,0 +1,43 @@
+# 銀行明細PDF→入出金管理表 同期スクリプト 設定ファイル
+# 実運用時は config.yaml にコピーして値を埋めてください (config.yaml は .gitignore 済み)
+
+google_drive:
+  # サービスアカウントの JSON キーへのパス
+  service_account_json: "./service-account.json"
+
+  # 銀行明細PDFが置かれている Drive フォルダの ID (未処理)
+  source_folder_id: "REPLACE_WITH_FOLDER_ID"
+
+  # 処理済み PDF の移動先フォルダ ID (銀行ごとに分けたい場合は per_bank も指定可)
+  processed_folder_id: "REPLACE_WITH_FOLDER_ID"
+  per_bank_processed:
+    juroku: "REPLACE_WITH_FOLDER_ID"   # 十六銀行
+    gifushinkin: "REPLACE_WITH_FOLDER_ID"  # 岐阜信用金庫
+
+  # 入出金管理表 Excel が置かれている Drive ファイル ID
+  excel_file_id: "REPLACE_WITH_FILE_ID"
+
+excel:
+  # 書き込み対象シート名
+  sheet_name: "入出金管理表"
+
+  # ヘッダ行(1-origin)
+  header_row: 1
+
+  # 列マッピング(ヘッダ名 → 書き込む値の種別)
+  # 実 Excel のヘッダ名に合わせて変更してください
+  columns:
+    日付: date
+    摘要: description
+    入金: deposit
+    出金: withdraw
+    残高: balance
+    銀行: bank
+    備考: note
+
+# 各銀行PDFの判定ルール(ファイル名で銀行を識別)
+bank_detection:
+  juroku:
+    filename_contains: ["十六", "juroku", "16"]
+  gifushinkin:
+    filename_contains: ["岐阜信用金庫", "岐阜信金", "gifushinkin"]
