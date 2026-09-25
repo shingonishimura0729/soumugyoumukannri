@@ -1,0 +1,9 @@
+{
+  "name": "soumugyoumukannri",
+  "private": true,
+  "type": "module",
+  "description": "社内アプリ置き場。GitHub Pages で配信する静的アプリ群",
+  "scripts": {
+    "test": "node --test tests/*.test.js"
+  }
+}

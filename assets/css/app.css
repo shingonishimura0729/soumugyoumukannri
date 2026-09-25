@@ -1,0 +1,397 @@
+/**
+ * 共通のスタイル。
+ *
+ * 現場からスマホで開く前提で組む。指で押す前提なので、
+ * 押せるものは**高さ44px以上**にしてある。ここを縮めると押し間違えが増える。
+ */
+
+:root {
+  --bg: #f4f5f7;
+  --panel: #ffffff;
+  --line: #dfe3e8;
+  --ink: #1f2933;
+  --ink-weak: #5c6b7a;
+  --accent: #2f6f4f;
+  --accent-ink: #ffffff;
+  --warn: #b04a2f;
+  --ok: #2f6f4f;
+  --off: #97a3b0;
+  --radius: 10px;
+  --tap: 44px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: -apple-system, BlinkMacSystemFont, "Hiragino Kaku Gothic ProN",
+    "Yu Gothic", "Meiryo", sans-serif;
+  font-size: 16px;
+  line-height: 1.7;
+}
+
+/* ---- 骨組み ---------------------------------------------- */
+
+header.bar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+header.bar h1 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 600;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+main {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 16px;
+}
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.panel > h2 {
+  margin: 0 0 12px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink-weak);
+}
+
+.row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.grow {
+  flex: 1;
+  min-width: 0;
+}
+
+.muted {
+  color: var(--ink-weak);
+  font-size: 14px;
+}
+
+/* ---- 押せるもの ------------------------------------------ */
+
+button,
+.btn {
+  min-height: var(--tap);
+  padding: 0 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #fff;
+  color: var(--ink);
+  font: inherit;
+  font-size: 15px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  text-decoration: none;
+}
+
+button:hover,
+.btn:hover {
+  background: #f0f2f4;
+}
+
+button.primary,
+.btn.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+}
+
+button.primary:hover,
+.btn.primary:hover {
+  filter: brightness(1.08);
+}
+
+button.ghost {
+  background: transparent;
+  border-color: transparent;
+  color: inherit;
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+button.danger {
+  color: var(--warn);
+  border-color: #e6c6bd;
+}
+
+/* ---- 入力 ------------------------------------------------ */
+
+input[type="text"],
+input[type="date"],
+input[type="url"],
+textarea,
+select {
+  width: 100%;
+  min-height: var(--tap);
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #fff;
+  color: var(--ink);
+  font: inherit;
+  /* 16px を下回ると iPhone が勝手に拡大する */
+  font-size: 16px;
+}
+
+textarea {
+  min-height: 80px;
+  resize: vertical;
+}
+
+label.field {
+  display: block;
+  margin-bottom: 12px;
+}
+
+label.field > span {
+  display: block;
+  font-size: 13px;
+  color: var(--ink-weak);
+  margin-bottom: 4px;
+}
+
+label.check {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: var(--tap);
+  cursor: pointer;
+}
+
+label.check input {
+  width: 20px;
+  height: 20px;
+}
+
+/* ---- 週の○× --------------------------------------------- */
+
+.days {
+  display: grid;
+  gap: 8px;
+}
+
+.day {
+  display: grid;
+  grid-template-columns: 96px auto 1fr;
+  gap: 8px;
+  align-items: center;
+}
+
+.day.off .memo {
+  opacity: 0.45;
+}
+
+.day .date {
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+}
+
+.day .date.sun {
+  color: #b04a2f;
+}
+
+.day .date.sat {
+  color: #2f5fb0;
+}
+
+/* ○×の切替。押した側だけ色が付く */
+.toggle {
+  display: inline-flex;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.toggle button {
+  min-width: 52px;
+  min-height: var(--tap);
+  border: 0;
+  border-radius: 0;
+  background: #fff;
+  font-size: 18px;
+  padding: 0;
+}
+
+.toggle button[aria-pressed="true"] {
+  background: var(--accent);
+  color: #fff;
+  font-weight: 700;
+}
+
+.toggle button + button {
+  border-left: 1px solid var(--line);
+}
+
+/* 画面が狭いときは日付を上の行へ回す */
+@media (max-width: 480px) {
+  .day {
+    grid-template-columns: 76px auto;
+    grid-template-areas:
+      "date toggle"
+      "memo memo";
+  }
+  .day .date {
+    grid-area: date;
+  }
+  .day .toggle {
+    grid-area: toggle;
+  }
+  .day .memo {
+    grid-area: memo;
+  }
+}
+
+/* ---- 一覧 ------------------------------------------------ */
+
+.list {
+  display: grid;
+  gap: 8px;
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #fff;
+  cursor: pointer;
+  text-align: left;
+  min-height: var(--tap);
+  width: 100%;
+  font: inherit;
+}
+
+.item:hover {
+  background: #f7f9fa;
+}
+
+.item .name {
+  flex: 1;
+  min-width: 0;
+  font-weight: 600;
+}
+
+.item .sub {
+  display: block;
+  font-weight: 400;
+  font-size: 13px;
+  color: var(--ink-weak);
+}
+
+/* ---- 状態の印 -------------------------------------------- */
+
+.tag {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  line-height: 1.8;
+  white-space: nowrap;
+  border: 1px solid var(--line);
+  color: var(--ink-weak);
+  background: #fff;
+}
+
+.tag.done {
+  border-color: #b6d4c3;
+  background: #eaf5ef;
+  color: var(--ok);
+}
+
+.tag.todo {
+  border-color: #e6d5bd;
+  background: #fbf3e6;
+  color: #8a5a20;
+}
+
+/* ---- 文面のプレビュー ------------------------------------ */
+
+pre.preview {
+  margin: 0;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #fbfbfc;
+  font-family: inherit;
+  font-size: 15px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* ---- 報せ ------------------------------------------------ */
+
+.notice {
+  padding: 12px 14px;
+  border-radius: var(--radius);
+  margin-bottom: 16px;
+  border: 1px solid var(--line);
+  background: #fff;
+}
+
+.notice.error {
+  border-color: #e6c6bd;
+  background: #fdf1ed;
+  color: var(--warn);
+}
+
+.notice.ok {
+  border-color: #b6d4c3;
+  background: #eaf5ef;
+  color: var(--ok);
+}
+
+.hidden {
+  display: none !important;
+}
+
+/* 画面には出さないが読み上げには渡す */
+.sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}

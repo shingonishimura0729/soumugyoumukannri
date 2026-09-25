@@ -1,0 +1,458 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>今週の工事予定の入力</title>
+<link rel="stylesheet" href="../assets/css/app.css">
+</head>
+<body>
+
+<header class="bar">
+  <h1 id="title">今週の工事予定</h1>
+  <span class="tag" id="contractor"></span>
+</header>
+
+<main>
+  <div class="notice error hidden" id="error"></div>
+  <div class="notice ok hidden" id="saved"></div>
+
+  <!-- 物件を選ぶ -->
+  <section id="view-list" class="hidden">
+    <div class="panel">
+      <h2>どの週の予定ですか</h2>
+      <div class="row">
+        <button id="week-prev" aria-label="前の週へ">◀</button>
+        <div class="grow" style="text-align:center">
+          <strong id="week-label">―</strong>
+          <span class="muted" id="week-note"></span>
+        </div>
+        <button id="week-next" aria-label="次の週へ">▶</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>担当している現場</h2>
+      <div class="list" id="projects"></div>
+      <p class="muted hidden" id="no-projects">
+        担当の現場がまだ登録されていません。事務所にご連絡ください。
+      </p>
+    </div>
+  </section>
+
+  <!-- 1つの物件の1週間を入力する -->
+  <section id="view-edit" class="hidden">
+    <div class="panel">
+      <div class="row">
+        <button id="back">◀ 現場を選び直す</button>
+      </div>
+      <h2 style="margin-top:12px" id="edit-title">―</h2>
+      <p class="muted" id="edit-week">―</p>
+    </div>
+
+    <div class="panel">
+      <h2>作業のある日に ○、休む日に × を押してください</h2>
+      <div class="days" id="days"></div>
+    </div>
+
+    <div class="panel">
+      <h2>注意してほしいこと</h2>
+      <p class="muted">
+        コンクリートを打った、水道が止まる、お客様に家にいてほしい ―
+        そういう日があれば足してください。無ければ空のままで大丈夫です。
+      </p>
+      <div class="list" id="notices"></div>
+      <button id="add-notice" style="margin-top:8px">＋ 足す</button>
+    </div>
+
+    <div class="panel">
+      <button class="primary" id="save" style="width:100%">この内容で保存する</button>
+      <p class="muted" id="save-note" style="margin-bottom:0"></p>
+    </div>
+  </section>
+</main>
+
+<script type="module">
+/**
+ * 業者用の入力画面。
+ *
+ * ログインを求めない。URL の `?t=` に入っているトークンが鍵になる。
+ * 読み書きできるのは `renrakuGyousha/{token}/` の下だけで、
+ * その線引きは firestore.rules 側にある。**この画面のチェックは守りではない。**
+ */
+
+import {
+  COL, SUB_WEEKS, NotConfiguredError,
+  db, doc, getDoc, setDoc, serverTimestamp,
+} from "../assets/js/firebase.js";
+import {
+  DAYS_IN_WEEK, NOTICE_LABELS, NOTICE_TYPES,
+  emptyDays, formatDayLabel, normalizeDays, parseISODate,
+  upcomingWeekStart, weekDates, weekLabel, weekStartOf, addDays,
+} from "../assets/js/domain.js";
+
+const $ = (id) => document.getElementById(id);
+
+/** 画面の状態。ここだけを見れば今どうなっているか分かるようにする */
+const state = {
+  token: new URLSearchParams(location.search).get("t") ?? "",
+  gyousha: null,      // トークンの持ち主（業者）
+  weekStart: upcomingWeekStart(new Date()),
+  project: null,      // いま開いている物件
+  days: emptyDays(),
+  notices: [],
+  dirty: false,       // 保存していない変更があるか
+};
+
+/** 今週（＝今日を含む週）。これより前は見るだけにする */
+const thisWeek = weekStartOf(new Date());
+
+/* ---- 表示のきりかえ -------------------------------------- */
+
+function show(id) {
+  for (const v of ["view-list", "view-edit"]) $(v).classList.toggle("hidden", v !== id);
+  window.scrollTo(0, 0);
+}
+
+function fail(message) {
+  $("error").textContent = message;
+  $("error").classList.remove("hidden");
+}
+
+function flash(message) {
+  const el = $("saved");
+  el.textContent = message;
+  el.classList.remove("hidden");
+  setTimeout(() => el.classList.add("hidden"), 4000);
+}
+
+/** 過去の週は見るだけ。あとから直されると送った内容と食い違うため */
+function readOnly() {
+  return state.weekStart < thisWeek;
+}
+
+/* ---- 立ち上げ -------------------------------------------- */
+
+async function start() {
+  if (!state.token) {
+    fail("URL が正しくありません。事務所から届いたリンクをそのまま開いてください。");
+    return;
+  }
+
+  let snap;
+  try {
+    snap = await getDoc(doc(db(), COL.gyousha, state.token));
+  } catch (err) {
+    if (err instanceof NotConfiguredError) { fail(err.message); return; }
+    fail("つながりませんでした。電波を確かめて、画面を更新してください。");
+    console.error(err);
+    return;
+  }
+
+  if (!snap.exists() || snap.data().isActive !== true) {
+    fail("このリンクは使えなくなっています。事務所に新しいリンクをご依頼ください。");
+    return;
+  }
+
+  state.gyousha = snap.data();
+  $("contractor").textContent = state.gyousha.contractorName ?? "";
+  renderWeek();
+  show("view-list");
+}
+
+/* ---- 週を選ぶ -------------------------------------------- */
+
+function renderWeek() {
+  $("week-label").textContent = weekLabel(state.weekStart);
+  $("week-note").textContent = readOnly() ? "（過ぎた週。見るだけ）" : "";
+  renderProjects();
+}
+
+function moveWeek(delta) {
+  state.weekStart = addDays(state.weekStart, delta * DAYS_IN_WEEK);
+  renderWeek();
+}
+
+$("week-prev").addEventListener("click", () => moveWeek(-1));
+$("week-next").addEventListener("click", () => moveWeek(1));
+
+/* ---- 物件の一覧 ------------------------------------------ */
+
+async function renderProjects() {
+  const projects = Array.isArray(state.gyousha.projects) ? state.gyousha.projects : [];
+  const box = $("projects");
+  box.textContent = "";
+  $("no-projects").classList.toggle("hidden", projects.length > 0);
+
+  for (const project of projects) {
+    const button = document.createElement("button");
+    button.className = "item";
+    button.type = "button";
+
+    const name = document.createElement("span");
+    name.className = "name";
+    name.textContent = project.projectName ?? "（名前なし）";
+    const sub = document.createElement("span");
+    sub.className = "sub";
+    sub.textContent = "読み込み中…";
+    name.append(sub);
+
+    const tag = document.createElement("span");
+    tag.className = "tag";
+    tag.textContent = "―";
+
+    button.append(name, tag);
+    button.addEventListener("click", () => openProject(project));
+    box.append(button);
+
+    // 入力済みかどうかを、一覧を出したあとで埋める。
+    // 先に全部読んでから描くと、現場の回線では待ち時間が長く感じられる
+    loadWeek(project.projectId).then((data) => {
+      const filled = data?.inputBy != null;
+      sub.textContent = filled
+        ? `最終入力：${data.inputBy}`
+        : "まだ入力されていません";
+      tag.textContent = filled ? "入力済み" : "未入力";
+      tag.className = `tag ${filled ? "done" : "todo"}`;
+    }).catch(() => {
+      sub.textContent = "読み込めませんでした";
+    });
+  }
+}
+
+/* ---- 1物件の1週間 ---------------------------------------- */
+
+function weekRef(projectId) {
+  return doc(db(), COL.gyousha, state.token, SUB_WEEKS, `${projectId}_${state.weekStart}`);
+}
+
+async function loadWeek(projectId) {
+  const snap = await getDoc(weekRef(projectId));
+  return snap.exists() ? snap.data() : null;
+}
+
+async function openProject(project) {
+  state.project = project;
+  state.dirty = false;
+
+  let data = null;
+  try {
+    data = await loadWeek(project.projectId);
+  } catch (err) {
+    fail("読み込めませんでした。電波を確かめて、もう一度開いてください。");
+    console.error(err);
+    return;
+  }
+
+  state.days = normalizeDays(data?.days);
+  state.notices = Array.isArray(data?.notices) ? data.notices.map((n) => ({ ...n })) : [];
+
+  $("edit-title").textContent = project.projectName ?? "（名前なし）";
+  $("edit-week").textContent = weekLabel(state.weekStart) + (readOnly() ? "（見るだけ）" : "");
+  $("save").disabled = readOnly();
+  $("add-notice").disabled = readOnly();
+  $("save-note").textContent = readOnly()
+    ? "過ぎた週なので直せません。直したいことがあれば事務所へご連絡ください。"
+    : "";
+
+  renderDays();
+  renderNotices();
+  show("view-edit");
+}
+
+$("back").addEventListener("click", () => {
+  if (state.dirty && !confirm("保存していない入力があります。戻ってよろしいですか。")) return;
+  renderProjects();
+  show("view-list");
+});
+
+function renderDays() {
+  const box = $("days");
+  box.textContent = "";
+  const dates = weekDates(state.weekStart);
+  const locked = readOnly();
+
+  state.days.forEach((day, i) => {
+    const row = document.createElement("div");
+    row.className = `day${day.work ? "" : " off"}`;
+
+    const date = document.createElement("div");
+    date.className = "date";
+    // `new Date("2026-09-29")` は UTC と見なされて前日になる国がある。
+    // 自前で組み立てた Date を使う
+    const dow = parseISODate(dates[i]).getDay();
+    if (dow === 0) date.classList.add("sun");
+    if (dow === 6) date.classList.add("sat");
+    date.textContent = formatDayLabel(dates[i]);
+
+    const toggle = document.createElement("div");
+    toggle.className = "toggle";
+    for (const [mark, works] of [["○", true], ["×", false]]) {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.textContent = mark;
+      b.setAttribute("aria-pressed", String(day.work === works));
+      b.setAttribute("aria-label", `${formatDayLabel(dates[i])} ${works ? "作業あり" : "休工"}`);
+      b.disabled = locked;
+      b.addEventListener("click", () => {
+        state.days[i].work = works;
+        state.dirty = true;
+        renderDays();
+      });
+      toggle.append(b);
+    }
+
+    const memo = document.createElement("input");
+    memo.type = "text";
+    memo.className = "memo";
+    memo.placeholder = day.work ? "作業内容（例：ブロック積み）" : "";
+    memo.value = day.memo;
+    memo.disabled = locked;
+    memo.addEventListener("input", () => {
+      state.days[i].memo = memo.value;
+      state.dirty = true;
+    });
+
+    row.append(date, toggle, memo);
+    box.append(row);
+  });
+}
+
+function renderNotices() {
+  const box = $("notices");
+  box.textContent = "";
+  const locked = readOnly();
+
+  state.notices.forEach((notice, i) => {
+    const panel = document.createElement("div");
+    panel.style.cssText = "border:1px solid var(--line);border-radius:var(--radius);padding:12px";
+
+    const kind = document.createElement("select");
+    for (const type of Object.values(NOTICE_TYPES)) {
+      const option = document.createElement("option");
+      option.value = type;
+      option.textContent = NOTICE_LABELS[type];
+      kind.append(option);
+    }
+    kind.value = notice.type ?? NOTICE_TYPES.CONCRETE;
+    kind.disabled = locked;
+
+    const date = document.createElement("input");
+    date.type = "date";
+    date.value = notice.date ?? "";
+    date.disabled = locked;
+
+    const detail = document.createElement("input");
+    detail.type = "text";
+    detail.placeholder = "内容（例：配管位置の確認）";
+    detail.value = notice.detail ?? "";
+    detail.disabled = locked;
+
+    /** 打設と断水は日付だけで足りる。内容欄を出すと何を書くか迷わせる */
+    const syncDetail = () => {
+      const needsDetail = kind.value === NOTICE_TYPES.HOME || kind.value === NOTICE_TYPES.OTHER;
+      detailField.classList.toggle("hidden", !needsDetail);
+    };
+
+    const kindField = field("種類", kind);
+    const dateField = field("日付", date);
+    const detailField = field("内容", detail);
+
+    kind.addEventListener("change", () => {
+      state.notices[i].type = kind.value;
+      state.dirty = true;
+      syncDetail();
+    });
+    date.addEventListener("change", () => { state.notices[i].date = date.value; state.dirty = true; });
+    detail.addEventListener("input", () => { state.notices[i].detail = detail.value; state.dirty = true; });
+
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.className = "danger";
+    remove.textContent = "この行を消す";
+    remove.disabled = locked;
+    remove.addEventListener("click", () => {
+      state.notices.splice(i, 1);
+      state.dirty = true;
+      renderNotices();
+    });
+
+    panel.append(kindField, dateField, detailField, remove);
+    box.append(panel);
+    syncDetail();
+  });
+}
+
+/** ラベル付きの入力欄をひとつ作る */
+function field(labelText, input) {
+  const label = document.createElement("label");
+  label.className = "field";
+  const span = document.createElement("span");
+  span.textContent = labelText;
+  label.append(span, input);
+  return label;
+}
+
+$("add-notice").addEventListener("click", () => {
+  state.notices.push({
+    id: `n${Date.now()}`,
+    type: NOTICE_TYPES.CONCRETE,
+    date: state.weekStart,
+    detail: "",
+  });
+  state.dirty = true;
+  renderNotices();
+});
+
+/* ---- 保存 ------------------------------------------------ */
+
+$("save").addEventListener("click", async () => {
+  const button = $("save");
+  button.disabled = true;
+  button.textContent = "保存中…";
+
+  try {
+    /**
+     * 送る中身は firestore.rules が許す8つの項目だけに絞る。
+     * 余分な項目を足すと**ルールに弾かれて保存できなくなる**ので、
+     * ここを増やすときはルール側も一緒に直すこと。
+     */
+    await setDoc(weekRef(state.project.projectId), {
+      projectId: state.project.projectId,
+      projectName: state.project.projectName ?? "",
+      weekStart: state.weekStart,
+      days: state.days.map((d) => ({ work: d.work, memo: d.memo })),
+      notices: state.notices.map((n) => ({
+        id: n.id ?? "",
+        type: n.type ?? NOTICE_TYPES.OTHER,
+        date: n.date ?? "",
+        detail: n.detail ?? "",
+      })),
+      inputBy: "業者",
+      inputAt: new Date().toISOString(),
+      updatedAt: serverTimestamp(),
+    });
+
+    state.dirty = false;
+    flash("保存しました。事務所の画面にも届いています。");
+    renderProjects();
+    show("view-list");
+  } catch (err) {
+    fail("保存できませんでした。電波を確かめて、もう一度押してください。");
+    console.error(err);
+  } finally {
+    button.disabled = readOnly();
+    button.textContent = "この内容で保存する";
+  }
+});
+
+/** 入力したまま閉じようとしたら止める */
+window.addEventListener("beforeunload", (e) => {
+  if (state.dirty) e.preventDefault();
+});
+
+start();
+</script>
+</body>
+</html>
