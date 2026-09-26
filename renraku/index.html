@@ -88,7 +88,7 @@
         <h2>現場を足す</h2>
         <label class="field"><span>現場名（必須）</span><input type="text" id="p-name" placeholder="例：ｸﾞﾗﾝ長良 小野様邸"></label>
         <label class="field"><span>お客様名（文面の宛名になります）</span><input type="text" id="p-customer" placeholder="例：小野"></label>
-        <label class="field"><span>入力する施工業者</span><select id="p-contractor"></select></label>
+        <label class="field"><span>どのトークルームに出すか</span><select id="p-room"></select></label>
         <label class="field"><span>送付先プランナー</span><select id="p-planner"></select></label>
         <label class="field"><span>完成予定</span><input type="date" id="p-finish"></label>
         <button class="primary" id="p-add">足す</button>
@@ -99,22 +99,28 @@
       </div>
     </div>
 
-    <!-- 業者とURL -->
-    <div id="tab-contractors" class="hidden">
+    <!-- トークルーム -->
+    <div id="tab-rooms" class="hidden">
       <div class="panel">
-        <h2>施工業者を足す</h2>
+        <h2>トークルームを足す</h2>
+        <p class="muted">
+          足すと同時にURLが1本できます。そのURLを LINE WORKS のトークルームに貼り、
+          <strong>そのまま貼りっぱなしにしてください。</strong>
+          業者さんは毎週それを開いて入力します。毎週送り直す必要はありません。
+        </p>
         <div class="row">
-          <input type="text" id="c-name" class="grow" placeholder="業者名">
-          <button class="primary" id="c-add">足す</button>
+          <input type="text" id="r-name" class="grow" placeholder="ルーム名（例：山田造園さん）">
+          <button class="primary" id="r-add">足してURLを作る</button>
         </div>
       </div>
       <div class="panel">
-        <h2>業者と、渡すURL</h2>
+        <h2>トークルームと、貼るURL</h2>
         <p class="muted">
-          URL は業者ごとに1本です。<strong>このURLを知っている人は入力画面を開けます</strong>ので、
-          相手のトークにだけ送ってください。渡し間違えたら「止める」を押せばその場で使えなくなります。
+          <strong>このURLを知っている人は入力画面を開けます。</strong>
+          開いても見えるのは、そのルームに割り当てた現場だけです。
+          貼り間違えたら「止める」を押せば、その場で使えなくなります。
         </p>
-        <div class="list" id="c-list"></div>
+        <div class="list" id="r-list"></div>
       </div>
     </div>
 
@@ -183,9 +189,9 @@ const state = {
   user: null,
   weekStart: upcomingWeekStart(new Date()),
   projects: [],
-  contractors: [],
+  rooms: [],
   planners: [],
-  /** 業者ID → トークン */
+  /** ルームID → トークン */
   tokenOf: new Map(),
   /** トークンの中身（URLの一覧に出す） */
   tokens: [],
@@ -228,7 +234,7 @@ function field(labelText, input) {
 const TABS = [
   ["tab-week", "今週の予定"],
   ["tab-projects", "現場"],
-  ["tab-contractors", "業者・URL"],
+  ["tab-rooms", "トークルーム"],
   ["tab-planners", "プランナー"],
   ["tab-settings", "設定"],
 ];
@@ -291,19 +297,20 @@ async function readAll(name) {
 async function loadAll() {
   clearFail();
   try {
-    const [projects, contractors, planners, tokens, settings] = await Promise.all([
+    const [projects, rooms, planners, tokens, settings] = await Promise.all([
       readAll(COL.projects),
-      readAll(COL.contractors),
+      readAll(COL.rooms),
       readAll(COL.planners),
       readAll(COL.gyousha),
       getDoc(doc(db(), COL.settings, "app")),
     ]);
 
-    state.projects = projects.sort((a, b) => (a.name ?? "").localeCompare(b.name ?? "", "ja"));
-    state.contractors = contractors.sort((a, b) => (a.name ?? "").localeCompare(b.name ?? "", "ja"));
-    state.planners = planners.sort((a, b) => (a.name ?? "").localeCompare(b.name ?? "", "ja"));
+    const byName = (a, b) => (a.name ?? "").localeCompare(b.name ?? "", "ja");
+    state.projects = projects.sort(byName);
+    state.rooms = rooms.sort(byName);
+    state.planners = planners.sort(byName);
     state.tokens = tokens;
-    state.tokenOf = new Map(tokens.map((t) => [t.contractorId, t.id]));
+    state.tokenOf = new Map(tokens.map((t) => [t.roomId, t.id]));
     state.settings = withDefaults(settings.exists() ? settings.data() : {});
 
     renderAll();
@@ -340,7 +347,7 @@ function withDefaults(saved) {
 function renderAll() {
   renderWeek();
   renderProjectsTab();
-  renderContractorsTab();
+  renderRoomsTab();
   renderPlannersTab();
   renderSettingsTab();
 }
@@ -350,9 +357,9 @@ function renderAll() {
 $("week-prev").addEventListener("click", () => { state.weekStart = addDays(state.weekStart, -DAYS_IN_WEEK); renderWeek(); });
 $("week-next").addEventListener("click", () => { state.weekStart = addDays(state.weekStart, DAYS_IN_WEEK); renderWeek(); });
 
-/** 業者の入力が入っている場所。業者にトークンが無ければ null */
+/** 業者の入力が入っている場所。ルームにURLが無ければ null */
 function weekRefFor(project) {
-  const token = state.tokenOf.get(project.contractorId);
+  const token = state.tokenOf.get(project.roomId);
   if (!token) return null;
   return doc(db(), COL.gyousha, token, SUB_WEEKS, `${project.id}_${state.weekStart}`);
 }
@@ -381,9 +388,9 @@ function renderWeek() {
     name.textContent = project.name ?? "（名前なし）";
     const sub = document.createElement("span");
     sub.className = "sub";
-    sub.textContent = state.tokenOf.has(project.contractorId)
+    sub.textContent = state.tokenOf.has(project.roomId)
       ? "読み込み中…"
-      : "この業者にまだURLを渡していません";
+      : "トークルームが未設定です";
     name.append(sub);
 
     const tag = document.createElement("span");
@@ -395,7 +402,7 @@ function renderWeek() {
     box.append(button);
 
     loadWeekFor(project).then((data) => {
-      if (!state.tokenOf.has(project.contractorId)) { tag.textContent = "URL未発行"; return; }
+      if (!state.tokenOf.has(project.roomId)) { tag.textContent = "ルーム未設定"; return; }
       const filled = data?.inputBy != null;
       sub.textContent = filled ? `最終入力：${data.inputBy}` : "業者の入力を待っています";
       tag.textContent = filled ? "入力済み" : "未入力";
@@ -411,8 +418,8 @@ function renderWeek() {
 
 async function openWeek(project) {
   clearFail();
-  if (!state.tokenOf.has(project.contractorId)) {
-    fail("この現場の施工業者にまだURLを発行していません。「業者・URL」から発行してください。");
+  if (!state.tokenOf.has(project.roomId)) {
+    fail("この現場にトークルームが割り当てられていません。「現場」から選んでください。");
     return;
   }
 
@@ -637,7 +644,7 @@ function fillSelect(select, items, blank) {
 }
 
 function renderProjectsTab() {
-  fillSelect($("p-contractor"), state.contractors, "（選んでください）");
+  fillSelect($("p-room"), state.rooms, "（選んでください）");
   fillSelect($("p-planner"), state.planners, "（選んでください）");
 
   const box = $("p-list");
@@ -652,11 +659,11 @@ function renderProjectsTab() {
     name.textContent = project.name ?? "";
     const sub = document.createElement("span");
     sub.className = "sub";
-    const contractor = state.contractors.find((c) => c.id === project.contractorId);
+    const room = state.rooms.find((r) => r.id === project.roomId);
     const planner = state.planners.find((p) => p.id === project.plannerId);
     sub.textContent = [
       project.customerName ? `${project.customerName}様` : "お客様名なし",
-      contractor ? contractor.name : "業者なし",
+      room ? room.name : "トークルームなし",
       planner ? `→ ${planner.name}` : "→ プランナーなし",
       project.finishDate ? `完成 ${formatDayLabel(project.finishDate)}` : "完成未定",
     ].join(" ／ ");
@@ -690,15 +697,15 @@ $("p-add").addEventListener("click", async () => {
   if (!name) { fail("現場名を入れてください。"); return; }
   clearFail();
 
-  const contractorId = $("p-contractor").value;
-  const contractor = state.contractors.find((c) => c.id === contractorId);
+  const roomId = $("p-room").value;
+  const room = state.rooms.find((r) => r.id === roomId);
 
   const id = `pj${Date.now()}${Math.floor(Math.random() * 1000)}`;
   await setDoc(doc(db(), COL.projects, id), {
     name,
     customerName: $("p-customer").value.trim(),
-    contractorId,
-    contractorName: contractor?.name ?? "",
+    roomId,
+    roomName: room?.name ?? "",
     plannerId: $("p-planner").value,
     finishDate: $("p-finish").value,
     isDone: false,
@@ -725,22 +732,22 @@ function newToken() {
   return Array.from(bytes, (b) => alphabet[b % alphabet.length]).join("");
 }
 
-/** 業者用URL。この画面と同じ場所に置いてある gyousha/ を指す */
+/** トークルームに貼るURL。この画面と同じ場所に置いてある gyousha/ を指す */
 function gyoushaUrl(token) {
   return new URL(`../gyousha/?t=${token}`, location.href).href;
 }
 
 /**
- * トークンが持つ「担当している現場」の一覧を作り直す。
+ * トークンが持つ「そのルームの現場」の一覧を作り直す。
  *
- * 業者はログインしないので、自分の担当を検索で絞ることができない。
- * そこで**トークンの中に担当の現場を書いておき**、業者はそれを読む。
- * 現場を足したり業者を変えたりしたら、必ずここを呼んで作り直すこと。
+ * 業者はログインしないので、自分の現場を検索で絞ることができない。
+ * そこで**トークンの中に現場を書いておき**、業者はそれを読む。
+ * 現場を足したりルームを変えたりしたら、必ずここを呼んで作り直すこと。
  */
 async function syncTokenProjects() {
   await Promise.all(state.tokens.map((token) => {
     const mine = state.projects
-      .filter((p) => p.contractorId === token.contractorId && p.isDone !== true)
+      .filter((p) => p.roomId === token.roomId && p.isDone !== true)
       .map((p) => ({
         projectId: p.id,
         projectName: p.name ?? "",
@@ -751,13 +758,13 @@ async function syncTokenProjects() {
     return setDoc(doc(db(), COL.gyousha, token.id),
       { projects: mine, updatedAt: serverTimestamp() }, { merge: true });
   }));
-  renderContractorsTab();
+  renderRoomsTab();
 }
 
 /**
  * 現場を足す・変える・消したあとの片付け。
  *
- * **業者側の担当一覧はトークンの中に書いてある**ので、
+ * **業者側の現場一覧はトークンの中に書いてある**ので、
  * 現場を触ったら必ずここを通す。忘れると業者の画面に現場が出てこない。
  */
 async function refreshProjects() {
@@ -765,11 +772,11 @@ async function refreshProjects() {
   await syncTokenProjects();
 }
 
-function renderContractorsTab() {
-  const box = $("c-list");
+function renderRoomsTab() {
+  const box = $("r-list");
   box.textContent = "";
 
-  for (const contractor of state.contractors) {
+  for (const room of state.rooms) {
     const panel = document.createElement("div");
     panel.style.cssText = "border:1px solid var(--line);border-radius:var(--radius);padding:12px";
 
@@ -777,96 +784,118 @@ function renderContractorsTab() {
     head.className = "row";
     const name = document.createElement("strong");
     name.className = "grow";
-    name.textContent = contractor.name ?? "";
+    name.textContent = room.name ?? "";
     head.append(name);
 
-    const token = state.tokens.find((t) => t.contractorId === contractor.id);
+    const token = state.tokens.find((t) => t.roomId === room.id);
 
+    /**
+     * URLはルームを足した時点で作る。ここに来て無いのは、
+     * 作成の途中で失敗した場合だけ。作り直せるようにしておく。
+     */
     if (!token) {
       const issue = document.createElement("button");
       issue.className = "primary";
-      issue.textContent = "URLを発行する";
-      issue.addEventListener("click", async () => {
-        const id = newToken();
-        await setDoc(doc(db(), COL.gyousha, id), {
-          contractorId: contractor.id,
-          contractorName: contractor.name ?? "",
-          isActive: true,
-          projects: [],
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-        });
-        await refreshProjects();
-        flash("発行しました。下のURLを業者さんに送ってください。");
-      });
+      issue.textContent = "URLを作る";
+      issue.addEventListener("click", () => issueUrlFor(room));
       head.append(issue);
       panel.append(head);
-    } else {
-      const status = document.createElement("span");
-      status.className = `tag ${token.isActive ? "done" : "todo"}`;
-      status.textContent = token.isActive ? "使えます" : "止めています";
-      head.append(status);
-      panel.append(head);
-
-      const url = document.createElement("input");
-      url.type = "text";
-      url.readOnly = true;
-      url.value = gyoushaUrl(token.id);
-      url.style.marginTop = "8px";
-      url.addEventListener("focus", () => url.select());
-      panel.append(url);
-
-      const actions = document.createElement("div");
-      actions.className = "row";
-      actions.style.marginTop = "8px";
-
-      const copy = document.createElement("button");
-      copy.textContent = "URLをコピー";
-      copy.addEventListener("click", async () => {
-        try {
-          await navigator.clipboard.writeText(url.value);
-          flash("コピーしました。");
-        } catch {
-          url.select();
-          fail("コピーできませんでした。選んだ状態にしたので、手でコピーしてください。");
-        }
-      });
-
-      const toggle = document.createElement("button");
-      toggle.textContent = token.isActive ? "止める" : "また使えるようにする";
-      if (token.isActive) toggle.className = "danger";
-      toggle.addEventListener("click", async () => {
-        if (token.isActive && !confirm("このURLを止めます。業者さんは入力できなくなります。")) return;
-        await setDoc(doc(db(), COL.gyousha, token.id),
-          { isActive: !token.isActive, updatedAt: serverTimestamp() }, { merge: true });
-        await loadAll();
-      });
-
-      actions.append(copy, toggle);
-      panel.append(actions);
-
-      const count = document.createElement("p");
-      count.className = "muted";
-      count.style.margin = "8px 0 0";
-      count.textContent = `担当している現場：${(token.projects ?? []).length} 件`;
-      panel.append(count);
+      box.append(panel);
+      continue;
     }
+
+    const status = document.createElement("span");
+    status.className = `tag ${token.isActive ? "done" : "todo"}`;
+    status.textContent = token.isActive ? "使えます" : "止めています";
+    head.append(status);
+    panel.append(head);
+
+    const url = document.createElement("input");
+    url.type = "text";
+    url.readOnly = true;
+    url.value = gyoushaUrl(token.id);
+    url.style.marginTop = "8px";
+    url.addEventListener("focus", () => url.select());
+    panel.append(url);
+
+    const actions = document.createElement("div");
+    actions.className = "row";
+    actions.style.marginTop = "8px";
+
+    const copy = document.createElement("button");
+    copy.className = "primary";
+    copy.textContent = "URLをコピー";
+    copy.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(url.value);
+        flash("コピーしました。トークルームに貼って、そのままにしておいてください。");
+      } catch {
+        url.select();
+        fail("コピーできませんでした。選んだ状態にしたので、手でコピーしてください。");
+      }
+    });
+
+    const toggle = document.createElement("button");
+    toggle.textContent = token.isActive ? "止める" : "また使えるようにする";
+    if (token.isActive) toggle.className = "danger";
+    toggle.addEventListener("click", async () => {
+      if (token.isActive && !confirm(
+        `「${room.name}」のURLを止めます。\n` +
+        "トークルームに貼ってあるリンクを開いても、入力できなくなります。"
+      )) return;
+      await setDoc(doc(db(), COL.gyousha, token.id),
+        { isActive: !token.isActive, updatedAt: serverTimestamp() }, { merge: true });
+      await loadAll();
+    });
+
+    actions.append(copy, toggle);
+    panel.append(actions);
+
+    const count = document.createElement("p");
+    count.className = "muted";
+    count.style.margin = "8px 0 0";
+    count.textContent = `このルームに出している現場：${(token.projects ?? []).length} 件`;
+    panel.append(count);
 
     box.append(panel);
   }
 }
 
-$("c-add").addEventListener("click", async () => {
-  const name = $("c-name").value.trim();
-  if (!name) { fail("業者名を入れてください。"); return; }
-  clearFail();
-  const id = `ct${Date.now()}${Math.floor(Math.random() * 1000)}`;
-  await setDoc(doc(db(), COL.contractors, id), {
-    name, isActive: true, createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+/** ルームにURLを1本作る */
+async function issueUrlFor(room) {
+  await setDoc(doc(db(), COL.gyousha, newToken()), {
+    roomId: room.id,
+    roomName: room.name ?? "",
+    isActive: true,
+    projects: [],
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
   });
-  $("c-name").value = "";
-  await loadAll();
-  flash("足しました。");
+  await refreshProjects();
+}
+
+$("r-add").addEventListener("click", async () => {
+  const name = $("r-name").value.trim();
+  if (!name) { fail("ルーム名を入れてください。"); return; }
+  clearFail();
+
+  const button = $("r-add");
+  button.disabled = true;
+  try {
+    const id = `rm${Date.now()}${Math.floor(Math.random() * 1000)}`;
+    await setDoc(doc(db(), COL.rooms, id), {
+      name, isActive: true, createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+    });
+    // 足したら続けてURLも作る。「登録してから発行」の2手間をなくすため
+    await issueUrlFor({ id, name });
+    $("r-name").value = "";
+    openTab("tab-rooms");
+    flash("足しました。下のURLをコピーして、トークルームに貼ってください。");
+  } catch (err) {
+    fail("足せませんでした。", err);
+  } finally {
+    button.disabled = false;
+  }
 });
 
 /* ---- プランナー ------------------------------------------ */

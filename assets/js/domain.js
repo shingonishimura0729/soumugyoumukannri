@@ -360,6 +360,37 @@ export function buildWeeklyMessage(input) {
 }
 
 /**
+ * 業者がトークルームへ返す報告の文面を組み立てる。
+ *
+ * お客様へ送る文面とは別物。**宛名も挨拶も入れない。**
+ * 受け取るのは事務所なので、何が決まったかだけが分かればよい。
+ *
+ * お客様向けの文面を業者に見せないのは、完成予定や文体を事務所が
+ * 整えてから出すため。ここで混ぜると、整える前のものがお客様へ渡る恐れがある。
+ *
+ * @param {object} input - 現場名と週の内容
+ * @returns {string} そのままトークへ貼れる文面
+ */
+export function buildReportMessage(input) {
+  const dates = weekDates(input.weekStart);
+  const lines = input.days.map((day, i) => {
+    const mark = day.work ? "○" : "×";
+    const memo = day.work && day.memo ? `　${day.memo}` : "";
+    return `${formatDayLabel(dates[i] ?? addDays(input.weekStart, i))}　${mark}${memo}`;
+  });
+
+  const parts = [
+    `【工事予定】${input.projectName ?? ""}`.trim(),
+    `${weekLabel(input.weekStart)}\n${lines.join("\n")}`,
+  ];
+
+  const body = noticeBody(input.notices ?? []);
+  if (body) parts.push(`【注意してほしいこと】\n${body}`);
+
+  return parts.join("\n\n");
+}
+
+/**
  * 注意事項だけを送る本文を組み立てる。
  *
  * 急ぎで伝えることがあるとき、週間連絡とは別に送る。

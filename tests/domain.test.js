@@ -12,6 +12,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   buildNoticeMessage,
+  buildReportMessage,
   buildWeeklyMessage,
   emptyDays,
   fillCureDates,
@@ -243,6 +244,53 @@ describe("buildNoticeMessage", () => {
     assert.ok(
       text.includes("※配管位置の確認の立会いをお願いしたく、ご在宅をお願いします")
     );
+  });
+});
+
+describe("buildReportMessage（業者がトークへ返す文面）", () => {
+  const base = {
+    projectName: "ｸﾞﾗﾝ長良 小野様邸",
+    weekStart: 火曜,
+    days: days("○○×○○○○", { 0: "ブロック積み" }),
+    notices: [],
+  };
+
+  it("現場名と週と7日ぶんが入る", () => {
+    const text = buildReportMessage(base);
+    assert.ok(text.includes("【工事予定】ｸﾞﾗﾝ長良 小野様邸"));
+    assert.ok(text.includes("9/29(火) 〜 10/5(月)"));
+    assert.ok(text.includes("9/29(火)　○　ブロック積み"));
+    assert.ok(text.includes("10/1(木)　×"));
+  });
+
+  it("休工日の作業内容は載せない", () => {
+    const text = buildReportMessage({
+      ...base,
+      days: days("○○×○○○○", { 2: "予備日" }),
+    });
+    assert.ok(!text.includes("予備日"));
+  });
+
+  it("作業内容は常に載せる（事務所が見るため）", () => {
+    // お客様向けと違い、載せるかどうかの選択は無い
+    assert.ok(buildReportMessage(base).includes("ブロック積み"));
+  });
+
+  it("注意事項があるときだけ枠が出る", () => {
+    assert.ok(!buildReportMessage(base).includes("【注意してほしいこと】"));
+    const text = buildReportMessage({
+      ...base,
+      notices: [{ id: "n1", type: "concrete", date: "2026-10-02" }],
+    });
+    assert.ok(text.includes("【注意してほしいこと】"));
+    assert.ok(text.includes("■ コンクリート打設"));
+  });
+
+  it("お客様向けの挨拶や宛名は入れない", () => {
+    const text = buildReportMessage(base);
+    for (const word of ["様\n", "お世話になって", "完成予定", "😊"]) {
+      assert.ok(!text.includes(word), `${word} が入っています`);
+    }
   });
 });
 

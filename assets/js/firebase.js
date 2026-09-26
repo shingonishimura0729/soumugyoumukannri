@@ -156,11 +156,11 @@ export const COL = {
   projects: "renrakuProjects",
   /** 送付先プランナー */
   planners: "renrakuPlanners",
-  /** 施工業者 */
-  contractors: "renrakuContractors",
+  /** 業者とのトークルーム。ここにURLを貼りっぱなしにする */
+  rooms: "renrakuRooms",
   /** 文体などの設定 */
   settings: "renrakuSettings",
-  /** 業者用トークン。この下に weeks が入る */
+  /** トークルームに貼るURL。この下に weeks が入る */
   gyousha: "renrakuGyousha",
   /** 送信の記録 */
   sendLog: "renrakuSendLog",

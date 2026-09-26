@@ -11,7 +11,7 @@
 
 <header class="bar">
   <h1 id="title">今週の工事予定</h1>
-  <span class="tag" id="contractor"></span>
+  <span class="tag" id="room"></span>
 </header>
 
 <main>
@@ -67,8 +67,22 @@
     </div>
 
     <div class="panel">
-      <button class="primary" id="save" style="width:100%">この内容で保存する</button>
+      <button class="primary" id="save" style="width:100%">保存する</button>
       <p class="muted" id="save-note" style="margin-bottom:0"></p>
+    </div>
+
+    <!-- 保存できてから出す。先に見せると、入力前の文面を送ってしまう -->
+    <div class="panel hidden" id="report-panel">
+      <h2>トークに貼る文面</h2>
+      <p class="muted">
+        下の文面をコピーして、<strong>このリンクが貼ってあるトークルームに送ってください。</strong>
+        事務所はこれを見て、お客様へのご連絡を作ります。
+      </p>
+      <pre class="preview" id="report"></pre>
+      <button class="primary" id="copy-report" style="width:100%;margin-top:12px">
+        文面をコピー
+      </button>
+      <p class="muted" id="copy-note" style="margin-bottom:0"></p>
     </div>
   </section>
 </main>
@@ -88,7 +102,7 @@ import {
 } from "../assets/js/firebase.js";
 import {
   DAYS_IN_WEEK, NOTICE_LABELS, NOTICE_TYPES,
-  emptyDays, formatDayLabel, normalizeDays, parseISODate,
+  buildReportMessage, emptyDays, formatDayLabel, normalizeDays, parseISODate,
   upcomingWeekStart, weekDates, weekLabel, weekStartOf, addDays,
 } from "../assets/js/domain.js";
 
@@ -178,7 +192,7 @@ async function start() {
   }
 
   state.gyousha = snap.data();
-  $("contractor").textContent = state.gyousha.contractorName ?? "";
+  $("room").textContent = state.gyousha.roomName ?? "";
   renderWeek();
   show("view-list");
 }
@@ -274,6 +288,9 @@ async function openProject(project) {
 
   $("edit-title").textContent = project.projectName ?? "（名前なし）";
   $("edit-week").textContent = weekLabel(state.weekStart) + (readOnly() ? "（見るだけ）" : "");
+  // 現場を開き直したら、前の現場の文面は消す
+  $("report-panel").classList.add("hidden");
+  $("copy-note").textContent = "";
   $("save").disabled = readOnly();
   $("add-notice").disabled = readOnly();
   $("save-note").textContent = readOnly()
@@ -442,26 +459,37 @@ $("save").addEventListener("click", async () => {
      * 余分な項目を足すと**ルールに弾かれて保存できなくなる**ので、
      * ここを増やすときはルール側も一緒に直すこと。
      */
+    const days = state.days.map((d) => ({ work: d.work, memo: d.memo.trim() }));
+    const notices = state.notices.map((n) => ({
+      id: n.id ?? "",
+      type: n.type ?? NOTICE_TYPES.OTHER,
+      date: n.date ?? "",
+      detail: (n.detail ?? "").trim(),
+    }));
+
     await setDoc(weekRef(state.project.projectId), {
       projectId: state.project.projectId,
       projectName: state.project.projectName ?? "",
       weekStart: state.weekStart,
-      days: state.days.map((d) => ({ work: d.work, memo: d.memo })),
-      notices: state.notices.map((n) => ({
-        id: n.id ?? "",
-        type: n.type ?? NOTICE_TYPES.OTHER,
-        date: n.date ?? "",
-        detail: n.detail ?? "",
-      })),
+      days,
+      notices,
       inputBy: "業者",
       inputAt: new Date().toISOString(),
       updatedAt: serverTimestamp(),
     });
 
     state.dirty = false;
-    flash("保存しました。事務所の画面にも届いています。");
-    renderProjects();
-    show("view-list");
+    flash("保存しました。");
+
+    // 保存できてから文面を出す。保存前に出すと、送ったのに届いていない状態が起きる
+    $("report").textContent = buildReportMessage({
+      projectName: state.project.projectName ?? "",
+      weekStart: state.weekStart,
+      days,
+      notices,
+    });
+    $("report-panel").classList.remove("hidden");
+    $("report-panel").scrollIntoView({ behavior: "smooth", block: "start" });
   } catch (err) {
     // 入力中に事務所がURLを止めた場合もここへ来る。書いた内容は state に残るので、
     // 新しいリンクで開き直せば入れ直しは1回で済む
@@ -471,7 +499,27 @@ $("save").addEventListener("click", async () => {
     console.error(err);
   } finally {
     button.disabled = readOnly();
-    button.textContent = "この内容で保存する";
+    button.textContent = "保存する";
+  }
+});
+
+$("copy-report").addEventListener("click", async () => {
+  try {
+    await navigator.clipboard.writeText($("report").textContent);
+    $("copy-note").textContent =
+      "コピーしました。トークルームに貼って送ってください。";
+  } catch {
+    /**
+     * 現場のスマホでは、機種や設定でコピーが使えないことがある。
+     * そのときは文面を選んだ状態にして、長押しでコピーしてもらう。
+     */
+    const range = document.createRange();
+    range.selectNodeContents($("report"));
+    const selection = window.getSelection();
+    selection.removeAllRanges();
+    selection.addRange(range);
+    $("copy-note").textContent =
+      "自動でコピーできませんでした。文面を選んだ状態にしたので、長押しでコピーしてください。";
   }
 });
 

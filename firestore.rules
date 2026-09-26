@@ -63,7 +63,7 @@ service cloud.firestore {
 
     match /renrakuProjects/{projectId}   { allow read, write: if isAdmin(); }
     match /renrakuPlanners/{plannerId}   { allow read, write: if isAdmin(); }
-    match /renrakuContractors/{id}       { allow read, write: if isAdmin(); }
+    match /renrakuRooms/{roomId}         { allow read, write: if isAdmin(); }
     match /renrakuSettings/{settingId}   { allow read, write: if isAdmin(); }
     match /renrakuSendLog/{logId}        { allow read, write: if isAdmin(); }
 
