@@ -132,6 +132,27 @@ function readOnly() {
   return state.weekStart < thisWeek;
 }
 
+/** 使えなくなったURLを開いたときの案内 */
+const DEAD_LINK =
+  "このリンクは使えなくなっています。事務所に新しいリンクをご依頼ください。";
+
+/**
+ * 通信の失敗か、URLが無効かを見分ける。
+ *
+ * Firestore は、**止めたトークンも・存在しないトークンも「権限がない」として返す**。
+ * 見分けずに「電波を確かめて」と出すと、事務所がURLを止めたときに
+ * 業者さんが何度も読み込み直すことになる。
+ *
+ * @param {unknown} err - 捕まえた例外
+ * @param {string} fallback - 権限以外の失敗のときに出す文
+ * @returns {string} 画面に出す文
+ */
+function describeError(err, fallback) {
+  if (err instanceof NotConfiguredError) return err.message;
+  if (err?.code === "permission-denied") return DEAD_LINK;
+  return fallback;
+}
+
 /* ---- 立ち上げ -------------------------------------------- */
 
 async function start() {
@@ -144,14 +165,15 @@ async function start() {
   try {
     snap = await getDoc(doc(db(), COL.gyousha, state.token));
   } catch (err) {
-    if (err instanceof NotConfiguredError) { fail(err.message); return; }
-    fail("つながりませんでした。電波を確かめて、画面を更新してください。");
+    fail(
+      describeError(err, "つながりませんでした。電波を確かめて、画面を更新してください。")
+    );
     console.error(err);
     return;
   }
 
   if (!snap.exists() || snap.data().isActive !== true) {
-    fail("このリンクは使えなくなっています。事務所に新しいリンクをご依頼ください。");
+    fail(DEAD_LINK);
     return;
   }
 
@@ -240,7 +262,9 @@ async function openProject(project) {
   try {
     data = await loadWeek(project.projectId);
   } catch (err) {
-    fail("読み込めませんでした。電波を確かめて、もう一度開いてください。");
+    fail(
+      describeError(err, "読み込めませんでした。電波を確かめて、もう一度開いてください。")
+    );
     console.error(err);
     return;
   }
@@ -439,7 +463,11 @@ $("save").addEventListener("click", async () => {
     renderProjects();
     show("view-list");
   } catch (err) {
-    fail("保存できませんでした。電波を確かめて、もう一度押してください。");
+    // 入力中に事務所がURLを止めた場合もここへ来る。書いた内容は state に残るので、
+    // 新しいリンクで開き直せば入れ直しは1回で済む
+    fail(
+      describeError(err, "保存できませんでした。電波を確かめて、もう一度押してください。")
+    );
     console.error(err);
   } finally {
     button.disabled = readOnly();
