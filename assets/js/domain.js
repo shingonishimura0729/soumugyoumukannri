@@ -87,21 +87,6 @@ export function formatDayLabel(iso) {
 }
 
 /**
- * その日を含む週のはじまり（火曜）を返す。
- *
- * 火曜そのものならその日。水曜〜月曜なら直前の火曜。
- *
- * @param {Date} date - 基準日
- * @returns {string} `YYYY-MM-DD`
- */
-export function weekStartOf(date) {
-  const start = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-  const diff = (start.getDay() - WEEK_START_DOW + DAYS_IN_WEEK) % DAYS_IN_WEEK;
-  start.setDate(start.getDate() - diff);
-  return toISODate(start);
-}
-
-/**
  * 今日以降で直近の週のはじまりを返す。
  *
  * 初期表示に使う。火曜なら当日、それ以外は**次の**火曜。
@@ -148,50 +133,6 @@ export function weekLabel(weekStart) {
  */
 export function emptyDays() {
   return Array.from({ length: DAYS_IN_WEEK }, () => ({ work: true, memo: "" }));
-}
-
-/**
- * 保存されていた値を7日ぶんに整える。
- *
- * 足りなければ埋め、多ければ切る。**壊れた値で画面が落ちないようにするため。**
- *
- * @param {unknown} days - 保存されていた値
- * @returns {{work: boolean, memo: string}[]} 必ず7要素
- */
-export function normalizeDays(days) {
-  const source = Array.isArray(days) ? days : [];
-  return Array.from({ length: DAYS_IN_WEEK }, (_, i) => {
-    const item = source[i];
-    if (!item || typeof item !== "object") return { work: true, memo: "" };
-    return {
-      work: item.work !== false,
-      memo: typeof item.memo === "string" ? item.memo : "",
-    };
-  });
-}
-
-/**
- * 週の連絡のIDを組み立てる。
- *
- * @param {string} projectId
- * @param {string} weekStart
- * @returns {string}
- */
-export function weeklyReportId(projectId, weekStart) {
-  return `${projectId}_${weekStart}`;
-}
-
-/**
- * 業者が触ったかどうか。
- *
- * 全部○のまま・メモも空なら「まだ触っていない」と見なす。
- * 未入力のまま送ってしまう事故を防ぐために使う。
- *
- * @param {readonly {work: boolean, memo: string}[]} days - 7日ぶん
- * @returns {boolean} 触られていれば true
- */
-export function isTouched(days) {
-  return days.some((day) => day.work === false || day.memo.trim() !== "");
 }
 
 /* ============================================================
@@ -355,37 +296,6 @@ export function buildWeeklyMessage(input) {
     `■ 完成予定\n${input.finishDate ? formatDayLabel(input.finishDate) : "（確認中）"}\n${phrases.finishNote}`
   );
   parts.push(decorate(phrases.close));
-
-  return parts.join("\n\n");
-}
-
-/**
- * 業者がトークルームへ返す報告の文面を組み立てる。
- *
- * お客様へ送る文面とは別物。**宛名も挨拶も入れない。**
- * 受け取るのは事務所なので、何が決まったかだけが分かればよい。
- *
- * お客様向けの文面を業者に見せないのは、完成予定や文体を事務所が
- * 整えてから出すため。ここで混ぜると、整える前のものがお客様へ渡る恐れがある。
- *
- * @param {object} input - 現場名と週の内容
- * @returns {string} そのままトークへ貼れる文面
- */
-export function buildReportMessage(input) {
-  const dates = weekDates(input.weekStart);
-  const lines = input.days.map((day, i) => {
-    const mark = day.work ? "○" : "×";
-    const memo = day.work && day.memo ? `　${day.memo}` : "";
-    return `${formatDayLabel(dates[i] ?? addDays(input.weekStart, i))}　${mark}${memo}`;
-  });
-
-  const parts = [
-    `【工事予定】${input.projectName ?? ""}`.trim(),
-    `${weekLabel(input.weekStart)}\n${lines.join("\n")}`,
-  ];
-
-  const body = noticeBody(input.notices ?? []);
-  if (body) parts.push(`【注意してほしいこと】\n${body}`);
 
   return parts.join("\n\n");
 }

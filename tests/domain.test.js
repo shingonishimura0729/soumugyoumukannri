@@ -12,18 +12,14 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   buildNoticeMessage,
-  buildReportMessage,
   buildWeeklyMessage,
   emptyDays,
   fillCureDates,
-  isTouched,
-  normalizeDays,
   noticeBody,
   stripEmoji,
   upcomingWeekStart,
   weekDates,
   weekLabel,
-  weekStartOf,
 } from "../assets/js/domain.js";
 
 const 火曜 = "2026-09-29";
@@ -37,18 +33,6 @@ function days(pattern, memos = {}) {
 }
 
 describe("週の計算", () => {
-  it("火曜はその日が週のはじまり", () => {
-    assert.equal(weekStartOf(new Date(2026, 8, 29)), "2026-09-29");
-  });
-
-  it("水曜は直前の火曜が週のはじまり", () => {
-    assert.equal(weekStartOf(new Date(2026, 8, 30)), "2026-09-29");
-  });
-
-  it("月曜は6日前の火曜が週のはじまり", () => {
-    assert.equal(weekStartOf(new Date(2026, 9, 5)), "2026-09-29");
-  });
-
   it("初期表示は今日以降の直近の火曜", () => {
     assert.equal(upcomingWeekStart(new Date(2026, 8, 29)), "2026-09-29");
     assert.equal(upcomingWeekStart(new Date(2026, 8, 30)), "2026-10-06");
@@ -75,47 +59,13 @@ describe("週の計算", () => {
   });
 });
 
-describe("保存値の整え方", () => {
-  it("足りなければ埋める", () => {
-    assert.equal(normalizeDays([{ work: false, memo: "解体" }]).length, 7);
-    assert.deepEqual(normalizeDays([{ work: false, memo: "解体" }])[0], {
-      work: false,
-      memo: "解体",
-    });
-  });
-
-  it("多ければ切る", () => {
-    assert.equal(
-      normalizeDays(new Array(12).fill({ work: true, memo: "" })).length,
-      7
-    );
-  });
-
-  it("壊れた値でも落ちない", () => {
-    assert.equal(normalizeDays("こわれている").length, 7);
-    assert.deepEqual(normalizeDays([null, 3, "x"])[0], { work: true, memo: "" });
+describe("はじめの7日ぶん", () => {
+  it("7日ぶんある", () => {
+    assert.equal(emptyDays().length, 7);
   });
 
   it("既定は全部「作業あり」", () => {
     assert.ok(emptyDays().every((d) => d.work));
-  });
-});
-
-describe("業者が触ったかどうか", () => {
-  it("全部○でメモも空なら未入力とみなす", () => {
-    assert.equal(isTouched(emptyDays()), false);
-  });
-
-  it("×が1つでもあれば入力済み", () => {
-    assert.equal(isTouched(days("○○×○○○○")), true);
-  });
-
-  it("メモだけでも入力済み", () => {
-    assert.equal(isTouched(days("○○○○○○○", { 2: "ブロック積み" })), true);
-  });
-
-  it("空白だけのメモは入力とみなさない", () => {
-    assert.equal(isTouched(days("○○○○○○○", { 2: "   " })), false);
   });
 });
 
@@ -244,53 +194,6 @@ describe("buildNoticeMessage", () => {
     assert.ok(
       text.includes("※配管位置の確認の立会いをお願いしたく、ご在宅をお願いします")
     );
-  });
-});
-
-describe("buildReportMessage（業者がトークへ返す文面）", () => {
-  const base = {
-    projectName: "ｸﾞﾗﾝ長良 小野様邸",
-    weekStart: 火曜,
-    days: days("○○×○○○○", { 0: "ブロック積み" }),
-    notices: [],
-  };
-
-  it("現場名と週と7日ぶんが入る", () => {
-    const text = buildReportMessage(base);
-    assert.ok(text.includes("【工事予定】ｸﾞﾗﾝ長良 小野様邸"));
-    assert.ok(text.includes("9/29(火) 〜 10/5(月)"));
-    assert.ok(text.includes("9/29(火)　○　ブロック積み"));
-    assert.ok(text.includes("10/1(木)　×"));
-  });
-
-  it("休工日の作業内容は載せない", () => {
-    const text = buildReportMessage({
-      ...base,
-      days: days("○○×○○○○", { 2: "予備日" }),
-    });
-    assert.ok(!text.includes("予備日"));
-  });
-
-  it("作業内容は常に載せる（事務所が見るため）", () => {
-    // お客様向けと違い、載せるかどうかの選択は無い
-    assert.ok(buildReportMessage(base).includes("ブロック積み"));
-  });
-
-  it("注意事項があるときだけ枠が出る", () => {
-    assert.ok(!buildReportMessage(base).includes("【注意してほしいこと】"));
-    const text = buildReportMessage({
-      ...base,
-      notices: [{ id: "n1", type: "concrete", date: "2026-10-02" }],
-    });
-    assert.ok(text.includes("【注意してほしいこと】"));
-    assert.ok(text.includes("■ コンクリート打設"));
-  });
-
-  it("お客様向けの挨拶や宛名は入れない", () => {
-    const text = buildReportMessage(base);
-    for (const word of ["様\n", "お世話になって", "完成予定", "😊"]) {
-      assert.ok(!text.includes(word), `${word} が入っています`);
-    }
   });
 });
 

@@ -22,7 +22,7 @@ import { describe, it } from "node:test";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 /** 画面として確かめるもの */
-const PAGES = ["renraku/index.html", "gyousha/index.html"];
+const PAGES = ["renraku/index.html"];
 
 /** ファイルが export している名前を集める */
 function exportsOf(file) {
@@ -89,20 +89,30 @@ describe("公開リポジトリとしての約束", () => {
    * このリポジトリは公開なので、秘密を書いた時点で世界中から読める。
    * 置き忘れやすいものを機械で見張る。
    */
-  it("業者用URLのトークンをコードに書いていない", () => {
-    for (const page of [...PAGES, "index.html"]) {
-      const src = readFileSync(resolve(root, page), "utf8");
-      // 発行するトークンは31種の英数字が32文字続く形。それらしい塊が無いことを見る
-      const suspicious = src.match(/["'][abcdefghjkmnpqrstuvwxyz23456789]{32,}["']/);
-      assert.equal(suspicious, null, `${page} にトークンらしき文字列があります`);
+  const FILES = [...PAGES, "index.html", "assets/js/domain.js"];
+
+  it("鍵やトークンらしきものをコードに書いていない", () => {
+    for (const file of FILES) {
+      const src = readFileSync(resolve(root, file), "utf8");
+      for (const word of [
+        "BEGIN PRIVATE KEY", "client_secret", "Bearer ", "apiKey", "AIza",
+      ]) {
+        assert.ok(!src.includes(word), `${file} に ${word} があります`);
+      }
     }
   });
 
-  it("Firebase の設定以外に、鍵らしきものを置いていない", () => {
-    const config = readFileSync(resolve(root, "assets/js/firebase-config.js"), "utf8");
-    // ここに入ってよいのは接続情報だけ。秘密鍵やトークンの類は入れない
-    for (const word of ["BEGIN PRIVATE KEY", "client_secret", "Bearer "]) {
-      assert.ok(!config.includes(word), `firebase-config.js に ${word} があります`);
+  it("お客様名らしきものを埋め込んでいない", () => {
+    /**
+     * 宛名は URL か入力欄から受け取る。コードに書いてはいけない。
+     * 「〇〇様」の形が例文以外で紛れ込むのを見張る。
+     */
+    for (const file of PAGES) {
+      const src = readFileSync(resolve(root, file), "utf8");
+      const matched = [...src.matchAll(/[一-龠ぁ-んァ-ヶ]{2,6}様(?!の|方|々)/g)]
+        .map((m) => m[0])
+        .filter((name) => !["お客様", "皆様"].includes(name));
+      assert.deepEqual(matched, [], `${file} に ${matched.join(", ")} があります`);
     }
   });
 });

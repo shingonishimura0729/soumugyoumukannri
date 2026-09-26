@@ -4,464 +4,228 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
-<title>お客様連絡（管理）</title>
+<title>工事予定のご連絡</title>
 <link rel="stylesheet" href="../assets/css/app.css">
 </head>
 <body>
 
 <header class="bar">
-  <h1>お客様連絡</h1>
-  <span class="tag" id="who"></span>
-  <button class="ghost" id="logout" style="color:#fff">出る</button>
+  <h1>工事予定のご連絡</h1>
 </header>
 
 <main>
-  <div class="notice error hidden" id="error"></div>
   <div class="notice ok hidden" id="flash"></div>
 
-  <!-- ログイン前 -->
-  <section id="view-login" class="hidden">
-    <div class="panel">
-      <h2>ログイン</h2>
-      <p class="muted">会社の Google アカウント（@archigarden.net）でお入りください。</p>
-      <button class="primary" id="login">Google でログイン</button>
+  <section class="panel">
+    <h2>お客様</h2>
+    <label class="field">
+      <span>お客様名（文面の宛名になります）</span>
+      <input type="text" id="customer" placeholder="例：小野" autocomplete="off">
+    </label>
+    <label class="field" style="margin-bottom:0">
+      <span>完成予定（未定なら空のまま）</span>
+      <input type="date" id="finish">
+    </label>
+  </section>
+
+  <section class="panel">
+    <h2>どの週の予定ですか</h2>
+    <div class="row">
+      <button id="week-prev" aria-label="前の週へ">◀</button>
+      <div class="grow" style="text-align:center"><strong id="week-label">―</strong></div>
+      <button id="week-next" aria-label="次の週へ">▶</button>
     </div>
   </section>
 
-  <!-- ログイン後 -->
-  <section id="view-app" class="hidden">
-    <div class="panel">
-      <div class="row" id="nav"></div>
-    </div>
-
-    <!-- 今週の予定 -->
-    <div id="tab-week">
-      <div class="panel">
-        <div class="row">
-          <button id="week-prev" aria-label="前の週へ">◀</button>
-          <div class="grow" style="text-align:center"><strong id="week-label">―</strong></div>
-          <button id="week-next" aria-label="次の週へ">▶</button>
-        </div>
-      </div>
-      <div class="panel">
-        <h2>工事中の現場</h2>
-        <div class="list" id="week-list"></div>
-        <p class="muted hidden" id="week-empty">
-          現場がまだ登録されていません。「現場」から足してください。
-        </p>
-      </div>
-    </div>
-
-    <!-- 1物件の1週間 -->
-    <div id="tab-edit" class="hidden">
-      <div class="panel">
-        <button id="edit-back">◀ 一覧へ戻る</button>
-        <h2 style="margin-top:12px" id="edit-title">―</h2>
-        <p class="muted" id="edit-week">―</p>
-      </div>
-
-      <div class="panel">
-        <h2>工事予定</h2>
-        <div class="days" id="edit-days"></div>
-      </div>
-
-      <div class="panel">
-        <h2>ご注意いただきたい点</h2>
-        <div class="list" id="edit-notices"></div>
-        <button id="edit-add-notice" style="margin-top:8px">＋ 足す</button>
-      </div>
-
-      <div class="panel">
-        <h2>お送りする文面</h2>
-        <pre class="preview" id="preview">―</pre>
-        <div class="row" style="margin-top:12px">
-          <button class="primary" id="copy">文面をコピー</button>
-          <button id="save-week">入力を保存</button>
-        </div>
-        <p class="muted" id="send-note" style="margin-bottom:0"></p>
-      </div>
-    </div>
-
-    <!-- 現場 -->
-    <div id="tab-projects" class="hidden">
-      <div class="panel">
-        <h2>現場を足す</h2>
-        <label class="field"><span>現場名（必須）</span><input type="text" id="p-name" placeholder="例：ｸﾞﾗﾝ長良 小野様邸"></label>
-        <label class="field"><span>お客様名（文面の宛名になります）</span><input type="text" id="p-customer" placeholder="例：小野"></label>
-        <label class="field"><span>どのトークルームに出すか</span><select id="p-room"></select></label>
-        <label class="field"><span>送付先プランナー</span><select id="p-planner"></select></label>
-        <label class="field"><span>完成予定</span><input type="date" id="p-finish"></label>
-        <button class="primary" id="p-add">足す</button>
-      </div>
-      <div class="panel">
-        <h2>登録されている現場</h2>
-        <div class="list" id="p-list"></div>
-      </div>
-    </div>
-
-    <!-- トークルーム -->
-    <div id="tab-rooms" class="hidden">
-      <div class="panel">
-        <h2>トークルームを足す</h2>
-        <p class="muted">
-          足すと同時にURLが1本できます。そのURLを LINE WORKS のトークルームに貼り、
-          <strong>そのまま貼りっぱなしにしてください。</strong>
-          業者さんは毎週それを開いて入力します。毎週送り直す必要はありません。
-        </p>
-        <div class="row">
-          <input type="text" id="r-name" class="grow" placeholder="ルーム名（例：山田造園さん）">
-          <button class="primary" id="r-add">足してURLを作る</button>
-        </div>
-      </div>
-      <div class="panel">
-        <h2>トークルームと、貼るURL</h2>
-        <p class="muted">
-          <strong>このURLを知っている人は入力画面を開けます。</strong>
-          開いても見えるのは、そのルームに割り当てた現場だけです。
-          貼り間違えたら「止める」を押せば、その場で使えなくなります。
-        </p>
-        <div class="list" id="r-list"></div>
-      </div>
-    </div>
-
-    <!-- プランナー -->
-    <div id="tab-planners" class="hidden">
-      <div class="panel">
-        <h2>プランナーを足す</h2>
-        <label class="field"><span>名前</span><input type="text" id="pl-name" placeholder="例：西村"></label>
-        <label class="field"><span>共有トークルームID（LINE WORKS）</span><input type="text" id="pl-room" placeholder="送信を使うときに要ります。今は空でも構いません"></label>
-        <label class="field"><span>メモ</span><input type="text" id="pl-note"></label>
-        <button class="primary" id="pl-add">足す</button>
-      </div>
-      <div class="panel">
-        <h2>登録されているプランナー</h2>
-        <div class="list" id="pl-list"></div>
-      </div>
-    </div>
-
-    <!-- 設定 -->
-    <div id="tab-settings" class="hidden">
-      <div class="panel">
-        <h2>文面の設定</h2>
-        <label class="field"><span>文体</span>
-          <select id="s-tone">
-            <option value="casual">やわらかい</option>
-            <option value="formal">かしこまった</option>
-          </select>
-        </label>
-        <label class="check"><input type="checkbox" id="s-emoji"> 絵文字を入れる</label><br>
-        <label class="check"><input type="checkbox" id="s-memo"> 作業内容も文面に載せる</label>
-        <h2 style="margin-top:20px">コンクリートの養生</h2>
-        <label class="field"><span>歩けるようになるまで（打設日から何日後）</span><input type="text" inputmode="numeric" id="s-walk"></label>
-        <label class="field"><span>車を入れられるまで（打設日から何日後）</span><input type="text" inputmode="numeric" id="s-car"></label>
-        <button class="primary" id="s-save">保存</button>
-      </div>
-    </div>
+  <section class="panel">
+    <h2>作業のある日に ○、休む日に × を押してください</h2>
+    <div class="days" id="days"></div>
   </section>
+
+  <section class="panel">
+    <h2>ご注意いただきたい点</h2>
+    <p class="muted">
+      コンクリートを打つ、水道が止まる、お客様に家にいてほしい ―
+      そういう日があれば足してください。無ければ空のままで大丈夫です。
+    </p>
+    <div class="list" id="notices"></div>
+    <button id="add-notice" style="margin-top:8px">＋ 足す</button>
+  </section>
+
+  <section class="panel">
+    <h2>お送りする文面</h2>
+    <pre class="preview" id="preview">―</pre>
+    <button class="primary" id="copy" style="width:100%;margin-top:12px">文面をコピー</button>
+    <p class="muted" id="copy-note" style="margin-bottom:0"></p>
+  </section>
+
+  <details class="panel">
+    <summary style="cursor:pointer">文体などの設定</summary>
+    <p class="muted">この端末だけに覚えます。他の方の画面は変わりません。</p>
+    <label class="field">
+      <span>文体</span>
+      <select id="tone">
+        <option value="casual">やわらかい</option>
+        <option value="formal">かしこまった</option>
+      </select>
+    </label>
+    <label class="check"><input type="checkbox" id="emoji"> 絵文字を入れる</label><br>
+    <label class="check"><input type="checkbox" id="show-memo"> 作業内容も文面に載せる</label>
+    <label class="field" style="margin-top:12px">
+      <span>コンクリート：歩けるまでの日数（打設日から）</span>
+      <input type="text" inputmode="numeric" id="cure-walk">
+    </label>
+    <label class="field" style="margin-bottom:0">
+      <span>コンクリート：車を入れられるまでの日数（打設日から）</span>
+      <input type="text" inputmode="numeric" id="cure-car">
+    </label>
+  </details>
+
+  <details class="panel">
+    <summary style="cursor:pointer">このトークルーム用のURLを作る</summary>
+    <p class="muted">
+      上に入れた<strong>お客様名と完成予定を覚えたURL</strong>を作ります。
+      これをトークルームに貼っておけば、次からは開くだけで宛名が入っています。
+      <strong>一度貼ったら、そのままにしておいてください。</strong>
+    </p>
+    <input type="text" id="room-url" readonly>
+    <button class="primary" id="copy-url" style="width:100%;margin-top:8px">URLをコピー</button>
+    <p class="muted" id="url-note" style="margin-bottom:0"></p>
+  </details>
 </main>
 
 <script type="module">
 /**
- * 管理側の画面。
+ * 週の工事予定から、お客様へお送りする文面を組み立てる画面。
  *
- * ログインした会社の人だけが開ける。守りは firestore.rules にあり、
- * この画面での判定は**使い勝手のため**であって守りではない。
+ * **ログインもデータベースも無い。** トークルームが現場ごとに分かれていて、
+ * 誰に向けた話かはその場の全員が分かっているため、アプリが覚えておく必要がない。
+ * 入力した内容はトークに貼った文面として残るので、それが記録になる。
  *
- * 業者の入力は `renrakuGyousha/{token}/weeks/...` に入っている。
- * 業者ごとにトークンが違うので、業者ID→トークンの対応をここで持って引きに行く。
+ * この画面のURLをトークルームに貼りっぱなしにして、毎週それを開いて使う。
+ * お客様名と完成予定はURLに入れられるので、毎週打ち直さずに済む。
  */
 
 import {
-  COL, SUB_WEEKS, NotConfiguredError,
-  db, doc, collection, getDoc, getDocs, setDoc, deleteDoc,
-  serverTimestamp, signIn, logOut, watchSignIn,
-} from "../assets/js/firebase.js";
-import {
-  CURE_DEFAULT, DAYS_IN_WEEK, DEFAULT_PHRASES, NOTICE_LABELS, NOTICE_TYPES,
+  CURE_DEFAULT, DAYS_IN_WEEK, NOTICE_LABELS, NOTICE_TYPES,
   addDays, buildWeeklyMessage, emptyDays, fillCureDates, formatDayLabel,
-  isTouched, normalizeDays, parseISODate, upcomingWeekStart,
-  weekDates, weekLabel,
+  parseISODate, upcomingWeekStart, weekDates, weekLabel,
 } from "../assets/js/domain.js";
 
 const $ = (id) => document.getElementById(id);
 
+/** 設定を覚えておく場所。この端末のブラウザの中だけ */
+const STORE_KEY = "renraku_settings";
+
+const params = new URLSearchParams(location.search);
+
 const state = {
-  user: null,
   weekStart: upcomingWeekStart(new Date()),
-  projects: [],
-  rooms: [],
-  planners: [],
-  /** ルームID → トークン */
-  tokenOf: new Map(),
-  /** トークンの中身（URLの一覧に出す） */
-  tokens: [],
-  settings: null,
-  /** いま開いている物件の週 */
-  edit: null,
+  days: emptyDays(),
+  notices: [],
 };
 
-/* ---- 画面まわりの小道具 ---------------------------------- */
+/* ---- 設定の出し入れ -------------------------------------- */
 
-function fail(message, err) {
-  $("error").textContent = message;
-  $("error").classList.remove("hidden");
-  if (err) console.error(err);
-}
-
-function clearFail() {
-  $("error").classList.add("hidden");
-}
-
-function flash(message) {
-  const el = $("flash");
-  el.textContent = message;
-  el.classList.remove("hidden");
-  setTimeout(() => el.classList.add("hidden"), 4000);
-}
-
-/** ラベル付きの入力欄をひとつ作る */
-function field(labelText, input) {
-  const label = document.createElement("label");
-  label.className = "field";
-  const span = document.createElement("span");
-  span.textContent = labelText;
-  label.append(span, input);
-  return label;
-}
-
-/* ---- ページの切替 ---------------------------------------- */
-
-const TABS = [
-  ["tab-week", "今週の予定"],
-  ["tab-projects", "現場"],
-  ["tab-rooms", "トークルーム"],
-  ["tab-planners", "プランナー"],
-  ["tab-settings", "設定"],
-];
-
-/** 一覧から物件を開いたときだけ出す。ボタンは置かない */
-const HIDDEN_TABS = ["tab-edit"];
-
-function openTab(id) {
-  for (const [tab] of TABS) $(tab).classList.toggle("hidden", tab !== id);
-  for (const tab of HIDDEN_TABS) $(tab).classList.toggle("hidden", tab !== id);
-  for (const b of $("nav").children) {
-    b.classList.toggle("primary", b.dataset.tab === id);
-  }
-  window.scrollTo(0, 0);
-}
-
-for (const [id, label] of TABS) {
-  const button = document.createElement("button");
-  button.textContent = label;
-  button.dataset.tab = id;
-  button.addEventListener("click", () => openTab(id));
-  $("nav").append(button);
-}
-
-/* ---- ログイン -------------------------------------------- */
-
-$("login").addEventListener("click", async () => {
-  clearFail();
+/**
+ * 覚えていた設定を読む。
+ *
+ * ブラウザによっては保存が使えない（プライベートモードなど）。
+ * **読めなくても画面が動くようにする**ため、失敗は既定値で受け流す。
+ */
+function loadSettings() {
+  const fallback = {
+    tone: "casual", emoji: true, showMemo: false,
+    cure: { walk: CURE_DEFAULT.walk, car: CURE_DEFAULT.car },
+  };
   try {
-    await signIn();
-  } catch (err) {
-    fail(err instanceof NotConfiguredError ? err.message : err.message, err);
+    const saved = JSON.parse(localStorage.getItem(STORE_KEY) ?? "{}");
+    return {
+      tone: saved.tone === "formal" ? "formal" : "casual",
+      emoji: saved.emoji !== false,
+      showMemo: saved.showMemo === true,
+      cure: {
+        walk: Number.isFinite(saved.cure?.walk) ? saved.cure.walk : CURE_DEFAULT.walk,
+        car: Number.isFinite(saved.cure?.car) ? saved.cure.car : CURE_DEFAULT.car,
+      },
+    };
+  } catch {
+    return fallback;
   }
-});
-
-$("logout").addEventListener("click", () => logOut());
-
-try {
-  watchSignIn(async (user) => {
-    state.user = user;
-    $("who").textContent = user?.email ?? "";
-    $("logout").classList.toggle("hidden", !user);
-    $("view-login").classList.toggle("hidden", Boolean(user));
-    $("view-app").classList.toggle("hidden", !user);
-    if (user) await loadAll();
-  });
-} catch (err) {
-  $("view-login").classList.remove("hidden");
-  fail(err instanceof NotConfiguredError ? err.message : "起動できませんでした。", err);
 }
 
-/* ---- 読み込み -------------------------------------------- */
-
-/** コレクションを配列で読む。id を必ず付ける */
-async function readAll(name) {
-  const snap = await getDocs(collection(db(), name));
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-}
-
-async function loadAll() {
-  clearFail();
+function saveSettings() {
   try {
-    const [projects, rooms, planners, tokens, settings] = await Promise.all([
-      readAll(COL.projects),
-      readAll(COL.rooms),
-      readAll(COL.planners),
-      readAll(COL.gyousha),
-      getDoc(doc(db(), COL.settings, "app")),
-    ]);
-
-    const byName = (a, b) => (a.name ?? "").localeCompare(b.name ?? "", "ja");
-    state.projects = projects.sort(byName);
-    state.rooms = rooms.sort(byName);
-    state.planners = planners.sort(byName);
-    state.tokens = tokens;
-    state.tokenOf = new Map(tokens.map((t) => [t.roomId, t.id]));
-    state.settings = withDefaults(settings.exists() ? settings.data() : {});
-
-    renderAll();
-    openTab("tab-week");
-  } catch (err) {
-    /**
-     * 権限エラーは通信の失敗と分けて出す。
-     * 会社以外のアカウントで入ったときや、ルールを publish し忘れたときにここへ来る。
-     * 「更新してみてください」と案内すると、いつまでも原因にたどり着けない。
-     */
-    fail(
-      err?.code === "permission-denied"
-        ? "このアカウントでは読めません。@archigarden.net のアカウントでログインし直してください。"
-        : "読み込めませんでした。画面を更新してみてください。",
-      err
-    );
+    localStorage.setItem(STORE_KEY, JSON.stringify(settings()));
+  } catch {
+    // 保存できなくても文面は作れる。黙って続ける
   }
 }
 
-/** 設定の足りない項目を既定で埋める。あとから項目を足しても壊れないように */
-function withDefaults(saved) {
+/** いま画面に入っている設定 */
+function settings() {
+  const walk = Number($("cure-walk").value);
+  const car = Number($("cure-car").value);
   return {
-    tone: saved.tone === "formal" ? "formal" : "casual",
-    emoji: saved.emoji !== false,
-    showMemo: saved.showMemo === true,
+    tone: $("tone").value,
+    emoji: $("emoji").checked,
+    showMemo: $("show-memo").checked,
     cure: {
-      walk: Number.isFinite(saved.cure?.walk) ? saved.cure.walk : CURE_DEFAULT.walk,
-      car: Number.isFinite(saved.cure?.car) ? saved.cure.car : CURE_DEFAULT.car,
+      walk: Number.isFinite(walk) && walk >= 0 ? walk : CURE_DEFAULT.walk,
+      car: Number.isFinite(car) && car >= 0 ? car : CURE_DEFAULT.car,
     },
-    phrases: saved.phrases ?? null,
   };
 }
 
-function renderAll() {
+/* ---- 立ち上げ -------------------------------------------- */
+
+function start() {
+  const saved = loadSettings();
+  $("tone").value = saved.tone;
+  $("emoji").checked = saved.emoji;
+  $("show-memo").checked = saved.showMemo;
+  $("cure-walk").value = String(saved.cure.walk);
+  $("cure-car").value = String(saved.cure.car);
+
+  // URLに入っていれば、お客様名と完成予定を埋める
+  $("customer").value = params.get("c") ?? "";
+  $("finish").value = parseISODate(params.get("f") ?? "") ? params.get("f") : "";
+
   renderWeek();
-  renderProjectsTab();
-  renderRoomsTab();
-  renderPlannersTab();
-  renderSettingsTab();
+  renderNotices();
+  render();
 }
 
-/* ---- 今週の予定 ------------------------------------------ */
-
-$("week-prev").addEventListener("click", () => { state.weekStart = addDays(state.weekStart, -DAYS_IN_WEEK); renderWeek(); });
-$("week-next").addEventListener("click", () => { state.weekStart = addDays(state.weekStart, DAYS_IN_WEEK); renderWeek(); });
-
-/** 業者の入力が入っている場所。ルームにURLが無ければ null */
-function weekRefFor(project) {
-  const token = state.tokenOf.get(project.roomId);
-  if (!token) return null;
-  return doc(db(), COL.gyousha, token, SUB_WEEKS, `${project.id}_${state.weekStart}`);
-}
-
-async function loadWeekFor(project) {
-  const ref = weekRefFor(project);
-  if (!ref) return null;
-  const snap = await getDoc(ref);
-  return snap.exists() ? snap.data() : null;
-}
+/* ---- 週 -------------------------------------------------- */
 
 function renderWeek() {
   $("week-label").textContent = weekLabel(state.weekStart);
-  const live = state.projects.filter((p) => p.isDone !== true);
-  const box = $("week-list");
-  box.textContent = "";
-  $("week-empty").classList.toggle("hidden", live.length > 0);
-
-  for (const project of live) {
-    const button = document.createElement("button");
-    button.className = "item";
-    button.type = "button";
-
-    const name = document.createElement("span");
-    name.className = "name";
-    name.textContent = project.name ?? "（名前なし）";
-    const sub = document.createElement("span");
-    sub.className = "sub";
-    sub.textContent = state.tokenOf.has(project.roomId)
-      ? "読み込み中…"
-      : "トークルームが未設定です";
-    name.append(sub);
-
-    const tag = document.createElement("span");
-    tag.className = "tag";
-    tag.textContent = "―";
-
-    button.append(name, tag);
-    button.addEventListener("click", () => openWeek(project));
-    box.append(button);
-
-    loadWeekFor(project).then((data) => {
-      if (!state.tokenOf.has(project.roomId)) { tag.textContent = "ルーム未設定"; return; }
-      const filled = data?.inputBy != null;
-      sub.textContent = filled ? `最終入力：${data.inputBy}` : "業者の入力を待っています";
-      tag.textContent = filled ? "入力済み" : "未入力";
-      tag.className = `tag ${filled ? "done" : "todo"}`;
-    }).catch((err) => {
-      sub.textContent = "読み込めませんでした";
-      console.error(err);
-    });
-  }
+  renderDays();
 }
 
-/* ---- 1物件の1週間 ---------------------------------------- */
-
-async function openWeek(project) {
-  clearFail();
-  if (!state.tokenOf.has(project.roomId)) {
-    fail("この現場にトークルームが割り当てられていません。「現場」から選んでください。");
-    return;
-  }
-
-  let data = null;
-  try {
-    data = await loadWeekFor(project);
-  } catch (err) {
-    fail("読み込めませんでした。", err);
-    return;
-  }
-
-  state.edit = {
-    project,
-    days: normalizeDays(data?.days),
-    notices: Array.isArray(data?.notices) ? data.notices.map((n) => ({ ...n })) : [],
-    inputBy: data?.inputBy ?? null,
-  };
-
-  $("edit-title").textContent = project.name ?? "（名前なし）";
-  $("edit-week").textContent = state.edit.inputBy
-    ? `${weekLabel(state.weekStart)}　（最終入力：${state.edit.inputBy}）`
-    : `${weekLabel(state.weekStart)}　（業者はまだ入力していません）`;
-
-  renderEditDays();
-  renderEditNotices();
-  renderPreview();
-  openTab("tab-edit");
+function moveWeek(delta) {
+  state.weekStart = addDays(state.weekStart, delta * DAYS_IN_WEEK);
+  renderWeek();
+  render();
 }
 
-$("edit-back").addEventListener("click", () => { state.edit = null; renderWeek(); openTab("tab-week"); });
+$("week-prev").addEventListener("click", () => moveWeek(-1));
+$("week-next").addEventListener("click", () => moveWeek(1));
 
-function renderEditDays() {
-  const box = $("edit-days");
+/* ---- 7日の○× -------------------------------------------- */
+
+function renderDays() {
+  const box = $("days");
   box.textContent = "";
   const dates = weekDates(state.weekStart);
 
-  state.edit.days.forEach((day, i) => {
+  state.days.forEach((day, i) => {
     const row = document.createElement("div");
     row.className = `day${day.work ? "" : " off"}`;
 
     const date = document.createElement("div");
     date.className = "date";
+    // `new Date("2026-09-29")` は UTC と見なされて前日になる国がある
     const dow = parseISODate(dates[i]).getDay();
     if (dow === 0) date.classList.add("sun");
     if (dow === 6) date.classList.add("sat");
@@ -476,9 +240,9 @@ function renderEditDays() {
       b.setAttribute("aria-pressed", String(day.work === works));
       b.setAttribute("aria-label", `${formatDayLabel(dates[i])} ${works ? "作業あり" : "休工"}`);
       b.addEventListener("click", () => {
-        state.edit.days[i].work = works;
-        renderEditDays();
-        renderPreview();
+        state.days[i].work = works;
+        renderDays();
+        render();
       });
       toggle.append(b);
     }
@@ -486,11 +250,11 @@ function renderEditDays() {
     const memo = document.createElement("input");
     memo.type = "text";
     memo.className = "memo";
-    memo.placeholder = "作業内容";
+    memo.placeholder = day.work ? "作業内容（例：ブロック積み）" : "";
     memo.value = day.memo;
     memo.addEventListener("input", () => {
-      state.edit.days[i].memo = memo.value;
-      renderPreview();
+      state.days[i].memo = memo.value;
+      render();
     });
 
     row.append(date, toggle, memo);
@@ -498,11 +262,23 @@ function renderEditDays() {
   });
 }
 
-function renderEditNotices() {
-  const box = $("edit-notices");
+/* ---- 注意事項 -------------------------------------------- */
+
+/** ラベル付きの入力欄をひとつ作る */
+function field(labelText, input) {
+  const label = document.createElement("label");
+  label.className = "field";
+  const span = document.createElement("span");
+  span.textContent = labelText;
+  label.append(span, input);
+  return label;
+}
+
+function renderNotices() {
+  const box = $("notices");
   box.textContent = "";
 
-  state.edit.notices.forEach((notice, i) => {
+  state.notices.forEach((notice, i) => {
     const panel = document.createElement("div");
     panel.style.cssText = "border:1px solid var(--line);border-radius:var(--radius);padding:12px";
 
@@ -521,29 +297,36 @@ function renderEditNotices() {
 
     const detail = document.createElement("input");
     detail.type = "text";
+    detail.placeholder = "内容（例：配管位置の確認）";
     detail.value = notice.detail ?? "";
 
     const kindField = field("種類", kind);
     const dateField = field("日付", date);
     const detailField = field("内容", detail);
 
+    /** 打設と断水は日付だけで足りる。内容欄を出すと何を書くか迷わせる */
     const syncDetail = () => {
-      const needsDetail = kind.value === NOTICE_TYPES.HOME || kind.value === NOTICE_TYPES.OTHER;
+      const needsDetail =
+        kind.value === NOTICE_TYPES.HOME || kind.value === NOTICE_TYPES.OTHER;
       detailField.classList.toggle("hidden", !needsDetail);
     };
 
-    kind.addEventListener("change", () => { state.edit.notices[i].type = kind.value; syncDetail(); renderPreview(); });
-    date.addEventListener("change", () => { state.edit.notices[i].date = date.value; renderPreview(); });
-    detail.addEventListener("input", () => { state.edit.notices[i].detail = detail.value; renderPreview(); });
+    kind.addEventListener("change", () => {
+      state.notices[i].type = kind.value;
+      syncDetail();
+      render();
+    });
+    date.addEventListener("change", () => { state.notices[i].date = date.value; render(); });
+    detail.addEventListener("input", () => { state.notices[i].detail = detail.value; render(); });
 
     const remove = document.createElement("button");
     remove.type = "button";
     remove.className = "danger";
     remove.textContent = "この行を消す";
     remove.addEventListener("click", () => {
-      state.edit.notices.splice(i, 1);
-      renderEditNotices();
-      renderPreview();
+      state.notices.splice(i, 1);
+      renderNotices();
+      render();
     });
 
     panel.append(kindField, dateField, detailField, remove);
@@ -552,442 +335,86 @@ function renderEditNotices() {
   });
 }
 
-$("edit-add-notice").addEventListener("click", () => {
-  state.edit.notices.push({ id: `n${Date.now()}`, type: NOTICE_TYPES.CONCRETE, date: state.weekStart, detail: "" });
-  renderEditNotices();
-  renderPreview();
+$("add-notice").addEventListener("click", () => {
+  state.notices.push({
+    id: `n${Date.now()}`,
+    type: NOTICE_TYPES.CONCRETE,
+    date: state.weekStart,
+    detail: "",
+  });
+  renderNotices();
+  render();
 });
 
-function renderPreview() {
-  const { project, days, notices } = state.edit;
-  const settings = state.settings;
+/* ---- 文面 ------------------------------------------------ */
 
-  const text = buildWeeklyMessage({
-    customerName: project.customerName ?? "",
+function render() {
+  const s = settings();
+
+  $("preview").textContent = buildWeeklyMessage({
+    customerName: $("customer").value,
     weekStart: state.weekStart,
-    days,
-    // 打設日から解放日を埋めるのは表示のときだけ。保存する値は業者が入れたまま残す
-    notices: notices.map((n) => fillCureDates(n, settings.cure)),
-    finishDate: project.finishDate ?? "",
-    tone: settings.tone,
-    emoji: settings.emoji,
-    showMemo: settings.showMemo,
-    phrases: settings.phrases?.[settings.tone] ?? DEFAULT_PHRASES[settings.tone],
+    days: state.days,
+    // 打設日から解放日を埋めるのは表示のときだけ。入力欄の値はそのまま残す
+    notices: state.notices.map((n) => fillCureDates(n, s.cure)),
+    finishDate: $("finish").value,
+    tone: s.tone,
+    emoji: s.emoji,
+    showMemo: s.showMemo,
   });
 
-  $("preview").textContent = text;
-
-  const planner = state.planners.find((p) => p.id === project.plannerId);
-  $("send-note").textContent = isTouched(days)
-    ? (planner ? `送り先：${planner.name}（コピーして共有トークへ貼ってください）`
-               : "送付先プランナーが未設定です。「現場」から選んでください。")
-    : "※ まだ誰も入力していません（全部○のまま）。このまま送らないでください。";
+  renderRoomUrl();
 }
 
-$("copy").addEventListener("click", async () => {
+for (const id of ["customer", "finish"]) {
+  $(id).addEventListener("input", render);
+}
+for (const id of ["tone", "emoji", "show-memo", "cure-walk", "cure-car"]) {
+  $(id).addEventListener("input", () => { saveSettings(); render(); });
+}
+
+/**
+ * うまくいけば知らせ、だめなら選んだ状態にする。
+ *
+ * 現場のスマホでは、機種や設定でコピーが使えないことがある。
+ * **できませんでした、で終わらせない**ように、手でコピーできる形にしておく。
+ */
+async function copyFrom(element, note) {
   try {
-    await navigator.clipboard.writeText($("preview").textContent);
-    flash("文面をコピーしました。");
+    await navigator.clipboard.writeText(element.textContent || element.value);
+    note.textContent = "コピーしました。トークルームに貼ってください。";
   } catch {
-    fail("コピーできませんでした。文面を長押しして選んでください。");
-  }
-});
-
-$("save-week").addEventListener("click", async () => {
-  const ref = weekRefFor(state.edit.project);
-  if (!ref) { fail("この業者にURLが発行されていないため保存できません。"); return; }
-
-  const button = $("save-week");
-  button.disabled = true;
-  try {
-    /**
-     * 業者と同じ8項目だけを書く。
-     * ここに項目を足すと、次に業者が保存しようとしたときに
-     * **ルールに弾かれて業者が保存できなくなる**（ルールは結果の中身を見るため）。
-     */
-    await setDoc(ref, {
-      projectId: state.edit.project.id,
-      projectName: state.edit.project.name ?? "",
-      weekStart: state.weekStart,
-      days: state.edit.days.map((d) => ({ work: d.work, memo: d.memo })),
-      notices: state.edit.notices.map((n) => ({
-        id: n.id ?? "", type: n.type ?? NOTICE_TYPES.OTHER,
-        date: n.date ?? "", detail: n.detail ?? "",
-      })),
-      inputBy: "管理",
-      inputAt: new Date().toISOString(),
-      updatedAt: serverTimestamp(),
-    });
-    state.edit.inputBy = "管理";
-    flash("保存しました。");
-  } catch (err) {
-    fail("保存できませんでした。", err);
-  } finally {
-    button.disabled = false;
-  }
-});
-
-/* ---- 現場 ------------------------------------------------ */
-
-function fillSelect(select, items, blank) {
-  select.textContent = "";
-  const none = document.createElement("option");
-  none.value = "";
-  none.textContent = blank;
-  select.append(none);
-  for (const item of items) {
-    const option = document.createElement("option");
-    option.value = item.id;
-    option.textContent = item.name ?? "";
-    select.append(option);
-  }
-}
-
-function renderProjectsTab() {
-  fillSelect($("p-room"), state.rooms, "（選んでください）");
-  fillSelect($("p-planner"), state.planners, "（選んでください）");
-
-  const box = $("p-list");
-  box.textContent = "";
-  for (const project of state.projects) {
-    const row = document.createElement("div");
-    row.className = "item";
-    row.style.cursor = "default";
-
-    const name = document.createElement("span");
-    name.className = "name";
-    name.textContent = project.name ?? "";
-    const sub = document.createElement("span");
-    sub.className = "sub";
-    const room = state.rooms.find((r) => r.id === project.roomId);
-    const planner = state.planners.find((p) => p.id === project.plannerId);
-    sub.textContent = [
-      project.customerName ? `${project.customerName}様` : "お客様名なし",
-      room ? room.name : "トークルームなし",
-      planner ? `→ ${planner.name}` : "→ プランナーなし",
-      project.finishDate ? `完成 ${formatDayLabel(project.finishDate)}` : "完成未定",
-    ].join(" ／ ");
-    name.append(sub);
-
-    const done = document.createElement("button");
-    done.textContent = project.isDone ? "工事中に戻す" : "完工にする";
-    done.addEventListener("click", async () => {
-      await setDoc(doc(db(), COL.projects, project.id),
-        { isDone: !project.isDone, updatedAt: serverTimestamp() }, { merge: true });
-      await refreshProjects();
-    });
-
-    const remove = document.createElement("button");
-    remove.className = "danger";
-    remove.textContent = "消す";
-    remove.addEventListener("click", async () => {
-      if (!confirm(`「${project.name}」を消します。よろしいですか。\n※ 業者が入れた過去の週の内容は残ります。`)) return;
-      await deleteDoc(doc(db(), COL.projects, project.id));
-      await refreshProjects();
-      flash("消しました。");
-    });
-
-    row.append(name, done, remove);
-    box.append(row);
-  }
-}
-
-$("p-add").addEventListener("click", async () => {
-  const name = $("p-name").value.trim();
-  if (!name) { fail("現場名を入れてください。"); return; }
-  clearFail();
-
-  const roomId = $("p-room").value;
-  const room = state.rooms.find((r) => r.id === roomId);
-
-  const id = `pj${Date.now()}${Math.floor(Math.random() * 1000)}`;
-  await setDoc(doc(db(), COL.projects, id), {
-    name,
-    customerName: $("p-customer").value.trim(),
-    roomId,
-    roomName: room?.name ?? "",
-    plannerId: $("p-planner").value,
-    finishDate: $("p-finish").value,
-    isDone: false,
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
-  });
-
-  for (const el of ["p-name", "p-customer", "p-finish"]) $(el).value = "";
-  await refreshProjects();
-  flash("足しました。");
-});
-
-/* ---- 業者とURL ------------------------------------------- */
-
-/**
- * 推測できないトークンを作る。
- *
- * これが業者画面の唯一の鍵になるので、短くしないこと。
- * 32文字ぶんの乱数を、見間違えにくい文字だけで組み立てる。
- */
-function newToken() {
-  const alphabet = "abcdefghjkmnpqrstuvwxyz23456789";
-  const bytes = crypto.getRandomValues(new Uint8Array(32));
-  return Array.from(bytes, (b) => alphabet[b % alphabet.length]).join("");
-}
-
-/** トークルームに貼るURL。この画面と同じ場所に置いてある gyousha/ を指す */
-function gyoushaUrl(token) {
-  return new URL(`../gyousha/?t=${token}`, location.href).href;
-}
-
-/**
- * トークンが持つ「そのルームの現場」の一覧を作り直す。
- *
- * 業者はログインしないので、自分の現場を検索で絞ることができない。
- * そこで**トークンの中に現場を書いておき**、業者はそれを読む。
- * 現場を足したりルームを変えたりしたら、必ずここを呼んで作り直すこと。
- */
-async function syncTokenProjects() {
-  await Promise.all(state.tokens.map((token) => {
-    const mine = state.projects
-      .filter((p) => p.roomId === token.roomId && p.isDone !== true)
-      .map((p) => ({
-        projectId: p.id,
-        projectName: p.name ?? "",
-        finishDate: p.finishDate ?? "",
-      }));
-    // 画面の件数表示も合わせておく。もう一度読みに行かずに済ませるため
-    token.projects = mine;
-    return setDoc(doc(db(), COL.gyousha, token.id),
-      { projects: mine, updatedAt: serverTimestamp() }, { merge: true });
-  }));
-  renderRoomsTab();
-}
-
-/**
- * 現場を足す・変える・消したあとの片付け。
- *
- * **業者側の現場一覧はトークンの中に書いてある**ので、
- * 現場を触ったら必ずここを通す。忘れると業者の画面に現場が出てこない。
- */
-async function refreshProjects() {
-  await loadAll();
-  await syncTokenProjects();
-}
-
-function renderRoomsTab() {
-  const box = $("r-list");
-  box.textContent = "";
-
-  for (const room of state.rooms) {
-    const panel = document.createElement("div");
-    panel.style.cssText = "border:1px solid var(--line);border-radius:var(--radius);padding:12px";
-
-    const head = document.createElement("div");
-    head.className = "row";
-    const name = document.createElement("strong");
-    name.className = "grow";
-    name.textContent = room.name ?? "";
-    head.append(name);
-
-    const token = state.tokens.find((t) => t.roomId === room.id);
-
-    /**
-     * URLはルームを足した時点で作る。ここに来て無いのは、
-     * 作成の途中で失敗した場合だけ。作り直せるようにしておく。
-     */
-    if (!token) {
-      const issue = document.createElement("button");
-      issue.className = "primary";
-      issue.textContent = "URLを作る";
-      issue.addEventListener("click", () => issueUrlFor(room));
-      head.append(issue);
-      panel.append(head);
-      box.append(panel);
-      continue;
+    if (element.select) {
+      element.select();
+    } else {
+      const range = document.createRange();
+      range.selectNodeContents(element);
+      const selection = window.getSelection();
+      selection.removeAllRanges();
+      selection.addRange(range);
     }
-
-    const status = document.createElement("span");
-    status.className = `tag ${token.isActive ? "done" : "todo"}`;
-    status.textContent = token.isActive ? "使えます" : "止めています";
-    head.append(status);
-    panel.append(head);
-
-    const url = document.createElement("input");
-    url.type = "text";
-    url.readOnly = true;
-    url.value = gyoushaUrl(token.id);
-    url.style.marginTop = "8px";
-    url.addEventListener("focus", () => url.select());
-    panel.append(url);
-
-    const actions = document.createElement("div");
-    actions.className = "row";
-    actions.style.marginTop = "8px";
-
-    const copy = document.createElement("button");
-    copy.className = "primary";
-    copy.textContent = "URLをコピー";
-    copy.addEventListener("click", async () => {
-      try {
-        await navigator.clipboard.writeText(url.value);
-        flash("コピーしました。トークルームに貼って、そのままにしておいてください。");
-      } catch {
-        url.select();
-        fail("コピーできませんでした。選んだ状態にしたので、手でコピーしてください。");
-      }
-    });
-
-    const toggle = document.createElement("button");
-    toggle.textContent = token.isActive ? "止める" : "また使えるようにする";
-    if (token.isActive) toggle.className = "danger";
-    toggle.addEventListener("click", async () => {
-      if (token.isActive && !confirm(
-        `「${room.name}」のURLを止めます。\n` +
-        "トークルームに貼ってあるリンクを開いても、入力できなくなります。"
-      )) return;
-      await setDoc(doc(db(), COL.gyousha, token.id),
-        { isActive: !token.isActive, updatedAt: serverTimestamp() }, { merge: true });
-      await loadAll();
-    });
-
-    actions.append(copy, toggle);
-    panel.append(actions);
-
-    const count = document.createElement("p");
-    count.className = "muted";
-    count.style.margin = "8px 0 0";
-    count.textContent = `このルームに出している現場：${(token.projects ?? []).length} 件`;
-    panel.append(count);
-
-    box.append(panel);
+    note.textContent =
+      "自動でコピーできませんでした。選んだ状態にしたので、長押しでコピーしてください。";
   }
 }
 
-/** ルームにURLを1本作る */
-async function issueUrlFor(room) {
-  await setDoc(doc(db(), COL.gyousha, newToken()), {
-    roomId: room.id,
-    roomName: room.name ?? "",
-    isActive: true,
-    projects: [],
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
-  });
-  await refreshProjects();
+$("copy").addEventListener("click", () => copyFrom($("preview"), $("copy-note")));
+
+/* ---- このルーム用のURL ----------------------------------- */
+
+function renderRoomUrl() {
+  const url = new URL(location.pathname, location.origin);
+  const customer = $("customer").value.trim();
+  const finish = $("finish").value;
+  if (customer) url.searchParams.set("c", customer);
+  if (finish) url.searchParams.set("f", finish);
+  $("room-url").value = url.href;
 }
 
-$("r-add").addEventListener("click", async () => {
-  const name = $("r-name").value.trim();
-  if (!name) { fail("ルーム名を入れてください。"); return; }
-  clearFail();
+$("copy-url").addEventListener("click", () => copyFrom($("room-url"), $("url-note")));
+$("room-url").addEventListener("focus", () => $("room-url").select());
 
-  const button = $("r-add");
-  button.disabled = true;
-  try {
-    const id = `rm${Date.now()}${Math.floor(Math.random() * 1000)}`;
-    await setDoc(doc(db(), COL.rooms, id), {
-      name, isActive: true, createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
-    });
-    // 足したら続けてURLも作る。「登録してから発行」の2手間をなくすため
-    await issueUrlFor({ id, name });
-    $("r-name").value = "";
-    openTab("tab-rooms");
-    flash("足しました。下のURLをコピーして、トークルームに貼ってください。");
-  } catch (err) {
-    fail("足せませんでした。", err);
-  } finally {
-    button.disabled = false;
-  }
-});
-
-/* ---- プランナー ------------------------------------------ */
-
-function renderPlannersTab() {
-  const box = $("pl-list");
-  box.textContent = "";
-
-  for (const planner of state.planners) {
-    const row = document.createElement("div");
-    row.className = "item";
-    row.style.cursor = "default";
-
-    const name = document.createElement("span");
-    name.className = "name";
-    name.textContent = planner.name ?? "";
-    const sub = document.createElement("span");
-    sub.className = "sub";
-    sub.textContent = [
-      planner.room ? `トークルーム設定済み` : "トークルーム未設定",
-      planner.note ?? "",
-    ].filter(Boolean).join(" ／ ");
-    name.append(sub);
-
-    const remove = document.createElement("button");
-    remove.className = "danger";
-    remove.textContent = "消す";
-    remove.addEventListener("click", async () => {
-      const used = state.projects.filter((p) => p.plannerId === planner.id);
-      if (used.length > 0) {
-        fail(`「${planner.name}」は ${used.length} 件の現場で送付先になっています。先に別の方へ変えてください。`);
-        return;
-      }
-      if (!confirm(`「${planner.name}」を消します。よろしいですか。`)) return;
-      await deleteDoc(doc(db(), COL.planners, planner.id));
-      await loadAll();
-      flash("消しました。");
-    });
-
-    row.append(name, remove);
-    box.append(row);
-  }
-}
-
-$("pl-add").addEventListener("click", async () => {
-  const name = $("pl-name").value.trim();
-  if (!name) { fail("名前を入れてください。"); return; }
-  clearFail();
-  const id = `pl${Date.now()}${Math.floor(Math.random() * 1000)}`;
-  await setDoc(doc(db(), COL.planners, id), {
-    name,
-    room: $("pl-room").value.trim(),
-    note: $("pl-note").value.trim(),
-    isActive: true,
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
-  });
-  for (const el of ["pl-name", "pl-room", "pl-note"]) $(el).value = "";
-  await loadAll();
-  flash("足しました。");
-});
-
-/* ---- 設定 ------------------------------------------------ */
-
-function renderSettingsTab() {
-  $("s-tone").value = state.settings.tone;
-  $("s-emoji").checked = state.settings.emoji;
-  $("s-memo").checked = state.settings.showMemo;
-  $("s-walk").value = String(state.settings.cure.walk);
-  $("s-car").value = String(state.settings.cure.car);
-}
-
-$("s-save").addEventListener("click", async () => {
-  clearFail();
-  const walk = Number($("s-walk").value);
-  const car = Number($("s-car").value);
-  if (!Number.isFinite(walk) || !Number.isFinite(car) || walk < 0 || car < 0) {
-    fail("養生の日数は0以上の数字で入れてください。");
-    return;
-  }
-
-  const settings = {
-    tone: $("s-tone").value,
-    emoji: $("s-emoji").checked,
-    showMemo: $("s-memo").checked,
-    cure: { walk, car },
-    updatedAt: serverTimestamp(),
-  };
-  await setDoc(doc(db(), COL.settings, "app"), settings, { merge: true });
-  state.settings = withDefaults({ ...settings, phrases: state.settings.phrases });
-  flash("保存しました。");
-});
+start();
 </script>
 </body>
 </html>
