@@ -15,12 +15,12 @@
  */
 
 export const firebaseConfig = {
-  apiKey: "ここにapiKey",
-  authDomain: "ここにauthDomain",
-  projectId: "ここにprojectId",
-  storageBucket: "ここにstorageBucket",
-  messagingSenderId: "ここにmessagingSenderId",
-  appId: "ここにappId",
+  apiKey: "AIzaSyDZ1cuRYhp6r0Wo1Im6oeodvPU2I0uIGt8",
+  authDomain: "archigarden-renraku.firebaseapp.com",
+  projectId: "archigarden-renraku",
+  storageBucket: "archigarden-renraku.firebasestorage.app",
+  messagingSenderId: "149877532108",
+  appId: "1:149877532108:web:a16bfdf80cfa9007d3e969",
 };
 
 /** ログインを許すメールアドレスのドメイン。firestore.rules と必ず揃えること */
