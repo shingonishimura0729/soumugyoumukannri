@@ -180,6 +180,15 @@ input[type="url"],
 textarea,
 select {
   width: 100%;
+  /**
+   * 入力欄は、置かれた枠より狭くなれるようにする。
+   *
+   * 既定では「中身が入る幅」より狭くならず、枠からはみ出す。
+   * **とくに iPhone の日付欄**は中身に関係なく広い幅を主張するので、
+   * これが無いと右にはみ出して切れる。
+   */
+  min-width: 0;
+  max-width: 100%;
   min-height: var(--tap);
   padding: 8px 12px;
   border: 1px solid var(--line);
@@ -191,6 +200,32 @@ select {
   font-size: 16px;
 }
 
+/**
+ * 日付欄を、他の入力欄と同じ見た目に揃える。
+ *
+ * iPhone は日付欄に独自の見た目と幅を当ててくる。
+ * `appearance: none` で外さないと、枠からはみ出したまま直らない。
+ */
+input[type="date"] {
+  -webkit-appearance: none;
+  appearance: none;
+  /* 既定の inline-block のままだと、中身の幅で膨らむことがある */
+  display: block;
+  text-align: left;
+}
+
+/* iPhone が日付欄の中に作る部品も、枠からはみ出さないようにする */
+input[type="date"]::-webkit-date-and-time-value {
+  text-align: left;
+  min-width: 0;
+  margin: 0;
+}
+
+input[type="date"]::-webkit-datetime-edit {
+  min-width: 0;
+  padding: 0;
+}
+
 textarea {
   min-height: 80px;
   resize: vertical;
@@ -198,6 +233,9 @@ textarea {
 
 label.field {
   display: block;
+  /* 中身が広い幅を主張しても、この枠より広がらないようにする */
+  min-width: 0;
+  max-width: 100%;
   margin-bottom: 12px;
 }
 
@@ -225,6 +263,7 @@ label.check input {
 
 .days {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 6px;
 }
 
@@ -317,8 +356,15 @@ label.check input {
 
 /* ---- 一覧 ------------------------------------------------ */
 
+/**
+ * 縦に並べる枠。
+ *
+ * `minmax(0, 1fr)` を明示しないと、中身が「入る幅」を主張したときに
+ * 枠のほうが広がってしまい、画面からはみ出す。
+ */
 .list {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 8px;
 }
 
@@ -391,6 +437,7 @@ label.check input {
  */
 .preview {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 8px;
 }
 
