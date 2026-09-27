@@ -71,6 +71,29 @@ for (const page of PAGES) {
       assert.deepEqual(missing, [], `HTML に無い id: ${missing.join(", ")}`);
     });
 
+    it("URLを作る枠が、入力の枠より前にある", () => {
+      /**
+       * 使う順番が「URLを作る → そのURLで入れる」なので、画面もその順に置く。
+       * **逆になると、保存されないまま入力させてしまう。**
+       */
+      const setup = html.indexOf('id="setup"');
+      const needs = html.indexOf("data-needs-room");
+      assert.ok(setup >= 0, "URLを作る枠（id=setup）がありません");
+      assert.ok(needs >= 0, "URLが無いと使えない枠の印（data-needs-room）がありません");
+      assert.ok(setup < needs, "URLを作る枠が入力の枠より後ろにあります");
+    });
+
+    it("お客様名を文面に渡していない", () => {
+      /**
+       * お客様名は**どのトークルームのURLかを見分けるためだけ**のもの。
+       * 文面に渡すと宛名が付いてしまう。渡していないことを見張る。
+       */
+      assert.ok(
+        !/customerName\s*:/.test(script),
+        "buildWeeklyMessage に customerName を渡しています"
+      );
+    });
+
     it("import している名前がすべて export されている", () => {
       for (const m of script.matchAll(
         /import\s*\{([^}]*)\}\s*from\s*"(\.[^"]+)"/g

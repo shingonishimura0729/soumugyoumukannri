@@ -13,12 +13,41 @@
 
 <header class="bar">
   <h1>工事予定のご連絡</h1>
+  <!-- どのお客様のURLで開いているかを常に出す。取り違えを防ぐため -->
+  <span class="tag hidden" id="who"></span>
 </header>
 
 <main>
   <div class="notice ok hidden" id="flash"></div>
 
-  <section class="panel">
+  <!--
+    URLを作るところ。**これが最初の一手**なので先頭に置く。
+    すでにルームのURLで開いているときは、JS が この枠を末尾へ移す。
+    毎週使う業者さんの目に、作り直しの操作を先に見せないため。
+  -->
+  <details class="panel" id="setup">
+    <summary style="cursor:pointer" id="setup-title">このトークルーム用のURLを作る</summary>
+    <p class="muted" id="setup-lead"></p>
+    <label class="field">
+      <span>お客様名（必須）</span>
+      <input type="text" id="customer" placeholder="例：小野" autocomplete="off">
+    </label>
+    <p class="muted">
+      <strong>どのトークルームのURLかを見分けるためだけに使います。</strong>
+      お送りする文面には入りません。宛名は付きません。
+    </p>
+    <label class="field" style="margin-bottom:8px">
+      <span>できたURL</span>
+      <input type="text" id="room-url" readonly>
+    </label>
+    <button class="primary" id="copy-url" style="width:100%">URLをコピー</button>
+    <p class="muted" id="url-note"></p>
+    <p id="open-room-wrap" class="hidden" style="margin-bottom:0">
+      <a class="btn" id="open-room" href="#" style="width:100%">このURLを開いて入力をはじめる</a>
+    </p>
+  </details>
+
+  <section class="panel" data-needs-room>
     <h2>どの週の予定ですか</h2>
     <div class="row">
       <button id="week-prev" aria-label="前の週へ">◀</button>
@@ -31,12 +60,12 @@
     </div>
   </section>
 
-  <section class="panel">
+  <section class="panel" data-needs-room>
     <h2>作業のある日に ○、休む日に ×</h2>
     <div class="days" id="days"></div>
   </section>
 
-  <section class="panel">
+  <section class="panel" data-needs-room>
     <h2>ご注意いただきたい点</h2>
     <p class="muted">
       コンクリートを打つ、水道が止まる、お客様に家にいてほしい ―
@@ -46,24 +75,24 @@
     <button id="add-notice" style="margin-top:8px">＋ 足す</button>
   </section>
 
-  <section class="panel">
+  <section class="panel" data-needs-room>
     <h2>完成予定</h2>
     <div class="row">
       <input type="date" id="finish" class="grow">
     </div>
     <p class="muted" style="margin-bottom:0">
-      未定なら空のままで構いません。お客様連絡用の文面にだけ入ります。
+      未定なら空のままで構いません。
     </p>
   </section>
 
-  <section class="panel">
+  <section class="panel" data-needs-room>
     <h2>お送りする文面</h2>
     <div class="preview" id="preview"></div>
     <button class="primary" id="copy" style="width:100%;margin-top:12px">文面をコピー</button>
     <p class="muted" id="copy-note" style="margin-bottom:0"></p>
   </section>
 
-  <details class="panel">
+  <details class="panel" data-needs-room>
     <summary style="cursor:pointer">文体などの設定</summary>
     <p class="muted">この端末だけに覚えます。他の方の画面は変わりません。</p>
     <label class="field">
@@ -85,37 +114,26 @@
     </label>
   </details>
 
-  <details class="panel">
-    <summary style="cursor:pointer">このトークルーム用のURLを作る</summary>
-    <p class="muted">
-      <strong>工事ごとに最初の1回だけ</strong>の作業です。毎週は触りません。
-      ここで作ったURLをトークルームに貼っておけば、次からは開くだけで
-      <strong>宛名が入り、前に入力した内容も出てきます。</strong>
-    </p>
-    <p class="muted">
-      <strong>このURLでないと保存されません。</strong>
-      業者さんが入れた内容を事務所が見られるのも、同じURLを開いたときだけです。
-    </p>
-    <label class="field">
-      <span>お客様名（お客様連絡用の宛名になります。空なら宛名なし）</span>
-      <input type="text" id="customer" placeholder="例：小野" autocomplete="off">
-    </label>
-    <input type="text" id="room-url" readonly>
-    <button class="primary" id="copy-url" style="width:100%;margin-top:8px">URLをコピー</button>
-    <p class="muted" id="url-note" style="margin-bottom:0"></p>
-  </details>
 </main>
 
 <script type="module">
 /**
  * 週の工事予定から、お客様へお送りする文面を組み立てる画面。
  *
- * **ログインもデータベースも無い。** トークルームが現場ごとに分かれていて、
- * 誰に向けた話かはその場の全員が分かっているため、アプリが覚えておく必要がない。
- * 入力した内容はトークに貼った文面として残るので、それが記録になる。
+ * **ログインは無い。URLが鍵。** トークルームが工事ごとに分かれていて、
+ * 誰に向けた話かはその場の全員が分かっているため、現場やお客様を
+ * 登録する画面は要らない。URLの `?r=` がそのまま「どの工事か」を表す。
  *
- * この画面のURLをトークルームに貼りっぱなしにして、毎週それを開いて使う。
- * お客様名と完成予定はURLに入れられるので、毎週打ち直さずに済む。
+ * 使う順番は決まっている。
+ *
+ *   1. 工事ごとに1回だけ、このトークルーム用のURLを作ってトークに貼る
+ *   2. 毎週、そのURLを開いて ○× と作業内容を入れる（自動で保存される）
+ *
+ * したがって **`?r=` が無いときは 1 しかさせない。** 他の枠を出すと、
+ * 入れたものが保存されないまま消える。
+ *
+ * お客様名は**どのトークルームのURLかを見分けるためだけ**のもので、
+ * 文面には入れない。宛名は付けない（`buildWeeklyMessage` に渡さない）。
  */
 
 import {
@@ -224,10 +242,8 @@ function shortTime(iso) {
  * **読んでいる間は保存しない。** 途中の状態を書き戻してしまうため。
  */
 async function loadCurrentWeek() {
-  if (!state.roomId) {
-    sync("このURLでは保存されません。下の「このトークルーム用のURLを作る」から作り直してください。");
-    return;
-  }
+  // URLを作る前は読むものが無い。案内は setup の枠に出してある
+  if (!state.roomId) return;
 
   state.loading = true;
   sync("読み込み中…");
@@ -299,6 +315,36 @@ window.addEventListener("beforeunload", (e) => {
 
 /* ---- 立ち上げ -------------------------------------------- */
 
+/**
+ * URLを作る枠を、いまの状況に合う置き方にする。
+ *
+ * - `?r=` が無い … 先頭で開いたままにし、**他の枠は出さない。**
+ *   ここで入れても保存されないので、入れさせるほうが酷い
+ * - `?r=` がある … 末尾へ移して畳む。毎週使う人に作り直しを見せない
+ */
+function placeSetup() {
+  const setup = $("setup");
+
+  if (!state.roomId) {
+    setup.open = true;
+    $("setup-title").textContent = "まず、このトークルーム用のURLを作ります";
+    $("setup-lead").textContent =
+      "工事ごとに1回だけの作業です。ここで作ったURLをトークルームに貼ると、"
+      + "次からは開くだけで前に入れた内容が出てきます。"
+      + "このURLでないと入力が保存されません。";
+    for (const el of document.querySelectorAll("[data-needs-room]")) {
+      el.classList.add("hidden");
+    }
+    return;
+  }
+
+  document.querySelector("main").append(setup);
+  setup.open = false;
+  $("setup-title").textContent = "このトークルーム用のURLを作り直す";
+  $("setup-lead").textContent =
+    "ふだんは触りません。トークルームを新しく作ったときだけ使います。";
+}
+
 function start() {
   const saved = loadSettings();
   $("tone").value = saved.tone;
@@ -307,10 +353,11 @@ function start() {
   $("cure-walk").value = String(saved.cure.walk);
   $("cure-car").value = String(saved.cure.car);
 
-  // 宛名はURLから。完成予定は保存されていればそちらが勝つ（loadCurrentWeek で入る）
+  // お客様名はURLから。完成予定は保存されていればそちらが勝つ（loadCurrentWeek で入る）
   $("customer").value = params.get("c") ?? "";
   $("finish").value = parseISODate(params.get("f") ?? "") ? params.get("f") : "";
 
+  placeSetup();
   renderWeek();
   renderNotices();
   render();
@@ -505,7 +552,7 @@ function render() {
   const s = settings();
 
   state.text = buildWeeklyMessage({
-    customerName: $("customer").value,
+    // お客様名は渡さない。URLを見分けるためのもので、文面には入れない
     weekStart: state.weekStart,
     days: state.days,
     // 打設日から解放日を埋めるのは表示のときだけ。入力欄の値はそのまま残す
@@ -557,8 +604,8 @@ $("copy").addEventListener("click", async () => {
   }
 });
 
-// お客様名はURLに入るもので、保存の対象ではない
-$("customer").addEventListener("input", render);
+// お客様名はURLを見分けるためのもの。保存もしないし、文面にも入らない
+$("customer").addEventListener("input", renderRoomUrl);
 $("finish").addEventListener("input", () => { render(); scheduleSave(); });
 for (const id of ["tone", "emoji", "show-memo", "cure-walk", "cure-car"]) {
   $(id).addEventListener("input", () => { saveSettings(); render(); });
@@ -600,14 +647,39 @@ async function copyFrom(element, note, what = "") {
  */
 const urlRoomId = state.roomId ?? newRoomId();
 
+/**
+ * URLを組み立てて出す。
+ *
+ * **お客様名が空のあいだはURLを出さない。** 名前の無いURLが何本もトークに
+ * 貼られると、どれがどの工事のものか誰にも分からなくなる。
+ */
 function renderRoomUrl() {
+  const customer = $("customer").value.trim();
+
+  $("who").textContent = customer ? `${customer}様` : "";
+  $("who").classList.toggle("hidden", !customer);
+
+  if (!customer) {
+    $("room-url").value = "";
+    $("copy-url").disabled = true;
+    $("url-note").textContent = "お客様名を入れると、このトークルーム用のURLが出ます。";
+    $("open-room-wrap").classList.add("hidden");
+    return;
+  }
+
   const url = new URL(location.pathname, location.origin);
   url.searchParams.set("r", urlRoomId);
-  const customer = $("customer").value.trim();
+  url.searchParams.set("c", customer);
   const finish = $("finish").value;
-  if (customer) url.searchParams.set("c", customer);
   if (finish) url.searchParams.set("f", finish);
+
   $("room-url").value = url.href;
+  $("copy-url").disabled = false;
+  // すでにそのURLで開いているときは出さない。押す先が今の画面になってしまう
+  $("open-room").href = url.href;
+  $("open-room-wrap").classList.toggle("hidden", Boolean(state.roomId));
+  // 名前を打ち替えればURLも変わる。前の「コピーしました」は消す
+  $("url-note").textContent = "";
 }
 
 $("copy-url").addEventListener("click", () =>
