@@ -207,13 +207,19 @@ label.check input {
 
 .days {
   display: grid;
-  gap: 8px;
+  gap: 6px;
 }
 
+/**
+ * 日付・○×・作業内容を1行に収める。
+ *
+ * 7日ぶんを一目で見渡せるようにするため、折り返さない。
+ * 列幅を広げると作業内容の欄が潰れるので、増やすときは実機で確かめること。
+ */
 .day {
   display: grid;
-  grid-template-columns: 96px auto 1fr;
-  gap: 8px;
+  grid-template-columns: 62px auto minmax(0, 1fr);
+  gap: 6px;
   align-items: center;
 }
 
@@ -222,8 +228,16 @@ label.check input {
 }
 
 .day .date {
-  font-size: 15px;
+  font-size: 14px;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* 1行に収めるため、作業内容の欄は左右の余白を詰める */
+.day .memo {
+  padding-left: 8px;
+  padding-right: 8px;
+  font-size: 15px;
 }
 
 .day .date.sun {
@@ -243,7 +257,8 @@ label.check input {
 }
 
 .toggle button {
-  min-width: 52px;
+  /* 指で押せる下限。ここを縮めると押し間違いが増える */
+  min-width: 44px;
   min-height: var(--tap);
   border: 0;
   border-radius: 0;
@@ -262,22 +277,18 @@ label.check input {
   border-left: 1px solid var(--line);
 }
 
-/* 画面が狭いときは日付を上の行へ回す */
+/* 狭い画面では枠の余白を削って、作業内容の欄に幅を回す */
 @media (max-width: 480px) {
+  main {
+    padding: 12px;
+  }
+  .panel {
+    padding: 12px;
+    margin-bottom: 12px;
+  }
   .day {
-    grid-template-columns: 76px auto;
-    grid-template-areas:
-      "date toggle"
-      "memo memo";
-  }
-  .day .date {
-    grid-area: date;
-  }
-  .day .toggle {
-    grid-area: toggle;
-  }
-  .day .memo {
-    grid-area: memo;
+    grid-template-columns: 58px auto minmax(0, 1fr);
+    gap: 5px;
   }
 }
 

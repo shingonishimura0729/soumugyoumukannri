@@ -105,13 +105,19 @@ describe("公開リポジトリとしての約束", () => {
   it("お客様名らしきものを埋め込んでいない", () => {
     /**
      * 宛名は URL か入力欄から受け取る。コードに書いてはいけない。
-     * 「〇〇様」の形が例文以外で紛れ込むのを見張る。
+     * 「〇〇様」の形が紛れ込むのを見張る。
+     *
+     * 「お客様」「皆様」などの一般語は名前ではないので除く。
+     * **前に文字が続いていても除く**（「社内向けとお客様向け」のような
+     * 地の文に当たって、本物の混入が埋もれるのを避けるため）。
      */
+    const GENERAL = ["お客様", "皆様", "奥様", "各様"];
+
     for (const file of PAGES) {
       const src = readFileSync(resolve(root, file), "utf8");
-      const matched = [...src.matchAll(/[一-龠ぁ-んァ-ヶ]{2,6}様(?!の|方|々)/g)]
+      const matched = [...src.matchAll(/[一-龠ぁ-んァ-ヶ]{1,6}様/g)]
         .map((m) => m[0])
-        .filter((name) => !["お客様", "皆様"].includes(name));
+        .filter((name) => !GENERAL.some((word) => name.endsWith(word)));
       assert.deepEqual(matched, [], `${file} に ${matched.join(", ")} があります`);
     }
   });

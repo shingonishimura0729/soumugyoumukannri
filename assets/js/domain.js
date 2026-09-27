@@ -301,6 +301,36 @@ export function buildWeeklyMessage(input) {
 }
 
 /**
+ * 社内報告用の文面を組み立てる。
+ *
+ * お客様向けとは別物。**宛名も挨拶も完成予定も入れない。**
+ * 受け取るのは社内の人なので、何をいつやるかだけが分かればよい。
+ *
+ * 作業名は**常に載せる**。お客様向けでは「載せるか」を選べるが、
+ * 社内では何をするかが分からないと報告の意味が無い。
+ *
+ * @param {object} input - 週のはじまりと7日ぶんの予定、注意事項
+ * @returns {string} そのままトークへ貼れる文面
+ */
+export function buildReportMessage(input) {
+  const dates = weekDates(input.weekStart);
+  const lines = input.days.map((day, i) => {
+    const mark = day.work ? "○" : "×";
+    const memo = day.work && day.memo.trim() ? `　${day.memo.trim()}` : "";
+    return `${formatDayLabel(dates[i] ?? addDays(input.weekStart, i))}　${mark}${memo}`;
+  });
+
+  const parts = [
+    `【工事予定】${weekLabel(input.weekStart)}\n${lines.join("\n")}`,
+  ];
+
+  const body = noticeBody(input.notices ?? []);
+  if (body) parts.push(`【注意してほしいこと】\n${body}`);
+
+  return parts.join("\n\n");
+}
+
+/**
  * 注意事項だけを送る本文を組み立てる。
  *
  * 急ぎで伝えることがあるとき、週間連絡とは別に送る。

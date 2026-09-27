@@ -19,18 +19,6 @@
   <div class="notice ok hidden" id="flash"></div>
 
   <section class="panel">
-    <h2>お客様</h2>
-    <label class="field">
-      <span>お客様名（文面の宛名になります）</span>
-      <input type="text" id="customer" placeholder="例：小野" autocomplete="off">
-    </label>
-    <label class="field" style="margin-bottom:0">
-      <span>完成予定（未定なら空のまま）</span>
-      <input type="date" id="finish">
-    </label>
-  </section>
-
-  <section class="panel">
     <h2>どの週の予定ですか</h2>
     <div class="row">
       <button id="week-prev" aria-label="前の週へ">◀</button>
@@ -40,7 +28,7 @@
   </section>
 
   <section class="panel">
-    <h2>作業のある日に ○、休む日に × を押してください</h2>
+    <h2>作業のある日に ○、休む日に ×</h2>
     <div class="days" id="days"></div>
   </section>
 
@@ -55,7 +43,18 @@
   </section>
 
   <section class="panel">
-    <h2>お送りする文面</h2>
+    <h2>完成予定</h2>
+    <div class="row">
+      <input type="date" id="finish" class="grow">
+    </div>
+    <p class="muted" style="margin-bottom:0">
+      未定なら空のままで構いません。お客様連絡用の文面にだけ入ります。
+    </p>
+  </section>
+
+  <section class="panel">
+    <h2>文面</h2>
+    <div class="row" id="kind" style="margin-bottom:12px"></div>
     <pre class="preview" id="preview">―</pre>
     <button class="primary" id="copy" style="width:100%;margin-top:12px">文面をコピー</button>
     <p class="muted" id="copy-note" style="margin-bottom:0"></p>
@@ -86,10 +85,14 @@
   <details class="panel">
     <summary style="cursor:pointer">このトークルーム用のURLを作る</summary>
     <p class="muted">
-      上に入れた<strong>お客様名と完成予定を覚えたURL</strong>を作ります。
-      これをトークルームに貼っておけば、次からは開くだけで宛名が入っています。
-      <strong>一度貼ったら、そのままにしておいてください。</strong>
+      <strong>工事ごとに最初の1回だけ</strong>の作業です。毎週は触りません。
+      お客様名を覚えたURLを作り、それをトークルームに貼っておけば、
+      次からは開くだけで宛名が入った状態で始まります。
     </p>
+    <label class="field">
+      <span>お客様名（お客様連絡用の宛名になります。空なら宛名なし）</span>
+      <input type="text" id="customer" placeholder="例：小野" autocomplete="off">
+    </label>
     <input type="text" id="room-url" readonly>
     <button class="primary" id="copy-url" style="width:100%;margin-top:8px">URLをコピー</button>
     <p class="muted" id="url-note" style="margin-bottom:0"></p>
@@ -110,8 +113,8 @@
 
 import {
   CURE_DEFAULT, DAYS_IN_WEEK, NOTICE_LABELS, NOTICE_TYPES,
-  addDays, buildWeeklyMessage, emptyDays, fillCureDates, formatDayLabel,
-  parseISODate, upcomingWeekStart, weekDates, weekLabel,
+  addDays, buildReportMessage, buildWeeklyMessage, emptyDays, fillCureDates,
+  formatDayLabel, parseISODate, upcomingWeekStart, weekDates, weekLabel,
 } from "../assets/js/domain.js";
 
 const $ = (id) => document.getElementById(id);
@@ -119,13 +122,35 @@ const $ = (id) => document.getElementById(id);
 /** 設定を覚えておく場所。この端末のブラウザの中だけ */
 const STORE_KEY = "renraku_settings";
 
+/**
+ * 文面の種類。
+ *
+ * 社内向けとお客様向けで中身が違う。混ぜると、整える前のものが
+ * お客様へ渡ったり、社内向けに要る作業名が落ちたりする。
+ */
+const KINDS = [
+  ["report", "社内報告用"],
+  ["customer", "お客様連絡用"],
+];
+
 const params = new URLSearchParams(location.search);
 
 const state = {
   weekStart: upcomingWeekStart(new Date()),
   days: emptyDays(),
   notices: [],
+  kind: "report",
 };
+
+for (const [kind, label] of KINDS) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "grow";
+  button.textContent = label;
+  button.dataset.kind = kind;
+  button.addEventListener("click", () => { state.kind = kind; render(); });
+  $("kind").append(button);
+}
 
 /* ---- 設定の出し入れ -------------------------------------- */
 
@@ -252,7 +277,8 @@ function renderDays() {
     const memo = document.createElement("input");
     memo.type = "text";
     memo.className = "memo";
-    memo.placeholder = day.work ? "作業内容（例：ブロック積み）" : "";
+    // 1行に収めるので短くする。長いと欄の中で切れて読めない
+    memo.placeholder = day.work ? "例：ブロック積み" : "";
     memo.value = day.memo;
     memo.addEventListener("input", () => {
       state.days[i].memo = memo.value;
@@ -352,18 +378,29 @@ $("add-notice").addEventListener("click", () => {
 
 function render() {
   const s = settings();
+  // 打設日から解放日を埋めるのは表示のときだけ。入力欄の値はそのまま残す
+  const notices = state.notices.map((n) => fillCureDates(n, s.cure));
 
-  $("preview").textContent = buildWeeklyMessage({
-    customerName: $("customer").value,
-    weekStart: state.weekStart,
-    days: state.days,
-    // 打設日から解放日を埋めるのは表示のときだけ。入力欄の値はそのまま残す
-    notices: state.notices.map((n) => fillCureDates(n, s.cure)),
-    finishDate: $("finish").value,
-    tone: s.tone,
-    emoji: s.emoji,
-    showMemo: s.showMemo,
-  });
+  $("preview").textContent = state.kind === "report"
+    ? buildReportMessage({
+        weekStart: state.weekStart,
+        days: state.days,
+        notices,
+      })
+    : buildWeeklyMessage({
+        customerName: $("customer").value,
+        weekStart: state.weekStart,
+        days: state.days,
+        notices,
+        finishDate: $("finish").value,
+        tone: s.tone,
+        emoji: s.emoji,
+        showMemo: s.showMemo,
+      });
+
+  for (const button of $("kind").children) {
+    button.classList.toggle("primary", button.dataset.kind === state.kind);
+  }
 
   renderRoomUrl();
 }
