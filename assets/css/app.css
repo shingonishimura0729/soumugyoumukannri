@@ -24,6 +24,24 @@
   box-sizing: border-box;
 }
 
+/**
+ * ダブルタップでの拡大を切る。
+ *
+ * ○×を続けて押すと、iPhone がダブルタップと見なして画面を拡大してしまう。
+ * `manipulation` はダブルタップ拡大だけを切り、**指2本での拡大と
+ * スクロールは残す**。`user-scalable=no` で全部切ると、見えにくい人が
+ * 拡大できなくなるので使わない。
+ */
+button,
+.btn,
+label,
+input,
+select,
+textarea,
+summary {
+  touch-action: manipulation;
+}
+
 html {
   -webkit-text-size-adjust: 100%;
 }
@@ -223,8 +241,9 @@ label.check input {
   align-items: center;
 }
 
-.day.off .memo {
-  opacity: 0.45;
+/* 休工の日は日付も控えめにして、一目で分かるようにする */
+.day.off .date {
+  opacity: 0.55;
 }
 
 .day .date {
@@ -233,11 +252,15 @@ label.check input {
   white-space: nowrap;
 }
 
-/* 1行に収めるため、作業内容の欄は左右の余白を詰める */
+/**
+ * 1行に収めるため、作業内容の欄は左右の余白を詰める。
+ *
+ * **文字の大きさは 16px より下げないこと。** 下げると iPhone が
+ * 入力欄を触った瞬間に画面を拡大する。
+ */
 .day .memo {
   padding-left: 8px;
   padding-right: 8px;
-  font-size: 15px;
 }
 
 .day .date.sun {
@@ -359,16 +382,35 @@ label.check input {
 
 /* ---- 文面のプレビュー ------------------------------------ */
 
-pre.preview {
-  margin: 0;
-  padding: 14px;
+/**
+ * 段落ごとに枠で区切って出す。
+ *
+ * 続けて流すと、どこが挨拶でどこが予定なのかが読み取りにくい。
+ * **貼ったときの見え方とは別に、確かめやすさを優先する。**
+ * コピーされるのは組み立てたままの文字列で、この見た目は影響しない。
+ */
+.preview {
+  display: grid;
+  gap: 8px;
+}
+
+.preview .para {
+  padding: 12px 14px;
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: #fbfbfc;
-  font-family: inherit;
   font-size: 15px;
+  line-height: 1.9;
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+/* 罫線だけの段落は飾りなので、枠を重ねない */
+.preview .para.rule {
+  border: 0;
+  background: transparent;
+  padding: 0 4px;
+  color: var(--ink-weak);
 }
 
 /* ---- 報せ ------------------------------------------------ */

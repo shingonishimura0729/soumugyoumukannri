@@ -57,9 +57,8 @@
   </section>
 
   <section class="panel">
-    <h2>文面</h2>
-    <div class="row" id="kind" style="margin-bottom:12px"></div>
-    <pre class="preview" id="preview">―</pre>
+    <h2>お送りする文面</h2>
+    <div class="preview" id="preview"></div>
     <button class="primary" id="copy" style="width:100%;margin-top:12px">文面をコピー</button>
     <p class="muted" id="copy-note" style="margin-bottom:0"></p>
   </section>
@@ -121,7 +120,7 @@
 
 import {
   CURE_DEFAULT, DAYS_IN_WEEK, NOTICE_LABELS, NOTICE_TYPES,
-  addDays, buildReportMessage, buildWeeklyMessage, emptyDays, fillCureDates,
+  addDays, buildWeeklyMessage, emptyDays, fillCureDates,
   formatDayLabel, parseISODate, upcomingWeekStart, weekDates, weekLabel,
 } from "../assets/js/domain.js";
 import {
@@ -133,39 +132,20 @@ const $ = (id) => document.getElementById(id);
 /** 設定を覚えておく場所。この端末のブラウザの中だけ */
 const STORE_KEY = "renraku_settings";
 
-/**
- * 文面の種類。
- *
- * 社内向けとお客様向けで中身が違う。混ぜると、整える前のものが
- * お客様へ渡ったり、社内向けに要る作業名が落ちたりする。
- */
-const KINDS = [
-  ["report", "社内報告用"],
-  ["customer", "お客様連絡用"],
-];
-
 const params = new URLSearchParams(location.search);
 
 const state = {
   weekStart: upcomingWeekStart(new Date()),
   days: emptyDays(),
   notices: [],
-  kind: "report",
+  /** 組み立てた文面。コピーするのはこれ。画面の見た目とは分けて持つ */
+  text: "",
   /** トークルームのID。URLに入っていなければ null（保存しない） */
   roomId: isRoomId(params.get("r")) ? params.get("r") : null,
   /** 読み込み中は保存しない。読んだ内容で上書きしてしまうため */
   loading: false,
 };
 
-for (const [kind, label] of KINDS) {
-  const button = document.createElement("button");
-  button.type = "button";
-  button.className = "grow";
-  button.textContent = label;
-  button.dataset.kind = kind;
-  button.addEventListener("click", () => { state.kind = kind; render(); });
-  $("kind").append(button);
-}
 
 /* ---- 設定の出し入れ -------------------------------------- */
 
@@ -392,19 +372,34 @@ function renderDays() {
       toggle.append(b);
     }
 
-    const memo = document.createElement("input");
-    memo.type = "text";
-    memo.className = "memo";
-    // 1行に収めるので短くする。長いと欄の中で切れて読めない
-    memo.placeholder = day.work ? "例：ブロック積み" : "";
-    memo.value = day.memo;
-    memo.addEventListener("input", () => {
-      state.days[i].memo = memo.value;
-      render();
-      scheduleSave();
-    });
+    row.append(date, toggle);
 
-    row.append(date, toggle, memo);
+    /**
+     * 休工の日は作業内容の欄を出さない。
+     *
+     * 薄く残すと「入れられるのに反応しない欄」に見えて、壊れたと思われる。
+     * 入れてあった内容は state に残るので、○に戻せばそのまま出てくる。
+     */
+    if (day.work) {
+      const memo = document.createElement("input");
+      memo.type = "text";
+      memo.className = "memo";
+      // 1行に収めるので短くする。長いと欄の中で切れて読めない
+      memo.placeholder = "例：ブロック積み";
+      memo.value = day.memo;
+      memo.addEventListener("input", () => {
+        state.days[i].memo = memo.value;
+        render();
+        scheduleSave();
+      });
+      row.append(memo);
+    } else {
+      const rest = document.createElement("span");
+      rest.className = "muted";
+      rest.textContent = day.memo ? `休工（${day.memo}）` : "休工";
+      row.append(rest);
+    }
+
     box.append(row);
   });
 }
@@ -508,35 +503,59 @@ $("add-notice").addEventListener("click", () => {
 
 function render() {
   const s = settings();
-  // 打設日から解放日を埋めるのは表示のときだけ。入力欄の値はそのまま残す
-  const notices = state.notices.map((n) => fillCureDates(n, s.cure));
 
-  $("preview").textContent = state.kind === "report"
-    ? buildReportMessage({
-        weekStart: state.weekStart,
-        days: state.days,
-        notices,
-      })
-    : buildWeeklyMessage({
-        customerName: $("customer").value,
-        weekStart: state.weekStart,
-        days: state.days,
-        notices,
-        finishDate: $("finish").value,
-        tone: s.tone,
-        emoji: s.emoji,
-        showMemo: s.showMemo,
-      });
+  state.text = buildWeeklyMessage({
+    customerName: $("customer").value,
+    weekStart: state.weekStart,
+    days: state.days,
+    // 打設日から解放日を埋めるのは表示のときだけ。入力欄の値はそのまま残す
+    notices: state.notices.map((n) => fillCureDates(n, s.cure)),
+    finishDate: $("finish").value,
+    tone: s.tone,
+    emoji: s.emoji,
+    showMemo: s.showMemo,
+  });
 
-  for (const button of $("kind").children) {
-    button.classList.toggle("primary", button.dataset.kind === state.kind);
-  }
-
+  renderPreview();
   renderRoomUrl();
 }
 
-$("copy").addEventListener("click", () =>
-  copyFrom($("preview"), $("copy-note"), state.kind === "report" ? "社内報告用" : "お客様連絡用"));
+/** 罫線だけの行。飾りなので枠を付けない */
+const RULE_ONLY = /^[━─\s]+$/;
+
+/**
+ * 文面を段落ごとに分けて出す。
+ *
+ * **コピーされるのは `state.text` で、この見た目は影響しない。**
+ * 画面では区切って読みやすくし、貼るときは組み立てたままの形を渡す。
+ */
+function renderPreview() {
+  const box = $("preview");
+  box.textContent = "";
+
+  for (const block of state.text.split("\n\n")) {
+    const para = document.createElement("div");
+    para.className = RULE_ONLY.test(block) ? "para rule" : "para";
+    para.textContent = block;
+    box.append(para);
+  }
+}
+
+$("copy").addEventListener("click", async () => {
+  try {
+    await navigator.clipboard.writeText(state.text);
+    $("copy-note").textContent = "コピーしました。トークルームに貼ってください。";
+  } catch {
+    // 機種や設定でコピーが使えないことがある。選んだ状態にして長押しに委ねる
+    const range = document.createRange();
+    range.selectNodeContents($("preview"));
+    const selection = window.getSelection();
+    selection.removeAllRanges();
+    selection.addRange(range);
+    $("copy-note").textContent =
+      "自動でコピーできませんでした。選んだ状態にしたので、長押しでコピーしてください。";
+  }
+});
 
 // お客様名はURLに入るもので、保存の対象ではない
 $("customer").addEventListener("input", render);
