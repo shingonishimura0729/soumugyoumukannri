@@ -1,0 +1,68 @@
+rules_version = '2';
+
+/**
+ * 工事予定のご連絡 の Firestore ルール。
+ *
+ * このアプリは GitHub Pages から配信する静的ページで、サーバーを持たない。
+ * つまり**守りはすべてこのファイルに掛かっている**。画面側の JavaScript は
+ * 誰でも読めるし書き換えられるので、画面のチェックは守りとして数えない。
+ *
+ * ログインは使わない。**トークルームに貼ったURLの中のルームIDが鍵**になる。
+ * ルームIDは推測できない長さの乱数で、それを文書のIDに使っている。
+ * ルールはリクエストのパスしか見られないので、
+ * 「IDを知っている人だけ」を表せるのはこの形しかない。
+ *
+ * したがって次の2つが要点になる。
+ *
+ *   1. `list` を絶対に許さない。許すと一覧からIDを集められ、鍵の意味が消える
+ *   2. 中身の形を検めて、関係ないものを置かれないようにする
+ *
+ * URLを知っている人が読み書きできるのは想定どおり。
+ * そのトークルームの人が触れるようにするための作りなので。
+ */
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    match /renrakuWeeks/{weekId} {
+
+      /**
+       * 書き込んでよい形か。
+       *
+       * ログインしない相手に書かせるので、**項目も大きさも決め打ちにする**。
+       * 置き場所として使われるのを防ぐため。
+       */
+      function valid() {
+        let d = request.resource.data;
+        return d.keys().hasOnly([
+                 'roomId', 'weekStart', 'days', 'notices',
+                 'finishDate', 'updatedAtISO', 'updatedAt'
+               ])
+          && d.roomId is string
+          && d.roomId.size() >= 16 && d.roomId.size() <= 64
+          && d.weekStart is string && d.weekStart.size() == 10
+          // 文書のIDと中身が食い違っていたら拒む
+          && weekId == d.roomId + '_' + d.weekStart
+          && d.days is list && d.days.size() == 7
+          && d.notices is list && d.notices.size() <= 20
+          && d.finishDate is string && d.finishDate.size() <= 10
+          && d.updatedAtISO is string && d.updatedAtISO.size() <= 32;
+      }
+
+      // IDを知っている人だけが読める
+      allow get: if true;
+      allow create, update: if valid();
+
+      /**
+       * 一覧は禁止。**ここを許すとIDを集められ、鍵が働かなくなる。**
+       * 消すのも禁止。消えて困るのは入力した本人なので、画面からは消させない。
+       */
+      allow list, delete: if false;
+    }
+
+    // ここに書いていないものは全部拒否
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

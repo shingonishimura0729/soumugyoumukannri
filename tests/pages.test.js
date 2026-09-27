@@ -102,6 +102,35 @@ describe("公開リポジトリとしての約束", () => {
     }
   });
 
+  it("Firebase の設定ファイルには接続情報しか入れない", () => {
+    /**
+     * `firebaseConfig` の中身は秘密ではない（ブラウザに配る前提のもの）。
+     * **だからここだけは apiKey を持ってよい。** 守りは firestore.rules 側。
+     * ただし本物の秘密が紛れ込むのは別の話なので、そこだけ見張る。
+     */
+    const src = readFileSync(resolve(root, "assets/js/firebase-config.js"), "utf8");
+    for (const word of [
+      "BEGIN PRIVATE KEY", "client_secret", "private_key", "Bearer ",
+    ]) {
+      assert.ok(!src.includes(word), `firebase-config.js に ${word} があります`);
+    }
+  });
+
+  it("保管先のルールが list を許していない", () => {
+    /**
+     * URLの中のルームIDが唯一の鍵。**list を許すと一覧からIDを集められ、
+     * 鍵が鍵として働かなくなる。** 一番やってはいけない変更なので見張る。
+     */
+    const rules = readFileSync(resolve(root, "firestore.rules"), "utf8");
+    const allows = [...rules.matchAll(/allow\s+([^:]+):\s*if\s+([^;]+);/g)];
+    for (const [, actions, condition] of allows) {
+      if (/\blist\b/.test(actions)) {
+        assert.match(condition.trim(), /^false$/, `list が ${condition} で許されています`);
+      }
+    }
+    assert.ok(rules.includes("allow list, delete: if false;"), "list を禁じる行がありません");
+  });
+
   it("お客様名らしきものを埋め込んでいない", () => {
     /**
      * 宛名は URL か入力欄から受け取る。コードに書いてはいけない。

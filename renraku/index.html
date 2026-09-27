@@ -25,6 +25,10 @@
       <div class="grow" style="text-align:center"><strong id="week-label">―</strong></div>
       <button id="week-next" aria-label="次の週へ">▶</button>
     </div>
+    <div class="row" style="margin-top:8px">
+      <span class="muted grow" id="sync">―</span>
+      <button id="reload" class="hidden">最新を読み込む</button>
+    </div>
   </section>
 
   <section class="panel">
@@ -86,8 +90,12 @@
     <summary style="cursor:pointer">このトークルーム用のURLを作る</summary>
     <p class="muted">
       <strong>工事ごとに最初の1回だけ</strong>の作業です。毎週は触りません。
-      お客様名を覚えたURLを作り、それをトークルームに貼っておけば、
-      次からは開くだけで宛名が入った状態で始まります。
+      ここで作ったURLをトークルームに貼っておけば、次からは開くだけで
+      <strong>宛名が入り、前に入力した内容も出てきます。</strong>
+    </p>
+    <p class="muted">
+      <strong>このURLでないと保存されません。</strong>
+      業者さんが入れた内容を事務所が見られるのも、同じURLを開いたときだけです。
     </p>
     <label class="field">
       <span>お客様名（お客様連絡用の宛名になります。空なら宛名なし）</span>
@@ -116,6 +124,9 @@ import {
   addDays, buildReportMessage, buildWeeklyMessage, emptyDays, fillCureDates,
   formatDayLabel, parseISODate, upcomingWeekStart, weekDates, weekLabel,
 } from "../assets/js/domain.js";
+import {
+  isRoomId, loadWeek, newRoomId, saveWeek,
+} from "../assets/js/store.js";
 
 const $ = (id) => document.getElementById(id);
 
@@ -140,6 +151,10 @@ const state = {
   days: emptyDays(),
   notices: [],
   kind: "report",
+  /** トークルームのID。URLに入っていなければ null（保存しない） */
+  roomId: isRoomId(params.get("r")) ? params.get("r") : null,
+  /** 読み込み中は保存しない。読んだ内容で上書きしてしまうため */
+  loading: false,
 };
 
 for (const [kind, label] of KINDS) {
@@ -204,6 +219,104 @@ function settings() {
   };
 }
 
+/* ---- 保存と読み込み -------------------------------------- */
+
+/** 打ち終わるのを待ってから保存する。1文字ごとに書きに行かないため */
+const SAVE_WAIT_MS = 800;
+let saveTimer = null;
+
+function sync(message) {
+  $("sync").textContent = message;
+}
+
+/** `2026-09-28T05:32:10.000Z` → `9/28 14:32` */
+function shortTime(iso) {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "";
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${date.getMonth() + 1}/${date.getDate()} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+/**
+ * いまの週の内容を読み込む。
+ *
+ * 週を動かしたときと、開いたときに呼ぶ。
+ * **読んでいる間は保存しない。** 途中の状態を書き戻してしまうため。
+ */
+async function loadCurrentWeek() {
+  if (!state.roomId) {
+    sync("このURLでは保存されません。下の「このトークルーム用のURLを作る」から作り直してください。");
+    return;
+  }
+
+  state.loading = true;
+  sync("読み込み中…");
+  $("reload").classList.add("hidden");
+
+  try {
+    const saved = await loadWeek(state.roomId, state.weekStart);
+
+    state.days = Array.isArray(saved?.days) && saved.days.length === DAYS_IN_WEEK
+      ? saved.days.map((d) => ({ work: d.work !== false, memo: String(d.memo ?? "") }))
+      : emptyDays();
+    state.notices = Array.isArray(saved?.notices)
+      ? saved.notices.map((n) => ({ ...n }))
+      : [];
+    $("finish").value = typeof saved?.finishDate === "string"
+      ? saved.finishDate
+      : (parseISODate(params.get("f") ?? "") ? params.get("f") : "");
+
+    sync(saved?.updatedAtISO
+      ? `最終更新 ${shortTime(saved.updatedAtISO)}`
+      : "まだ入力されていません");
+    $("reload").classList.remove("hidden");
+  } catch (err) {
+    sync("読み込めませんでした。電波を確かめて、画面を更新してください。");
+    console.error(err);
+  } finally {
+    state.loading = false;
+    renderDays();
+    renderNotices();
+    render();
+  }
+}
+
+/** 入力が変わったときに呼ぶ。少し待ってからまとめて保存する */
+function scheduleSave() {
+  if (!state.roomId || state.loading) return;
+  clearTimeout(saveTimer);
+  sync("保存待ち…");
+  saveTimer = setTimeout(save, SAVE_WAIT_MS);
+}
+
+async function save() {
+  sync("保存中…");
+  try {
+    const at = await saveWeek(state.roomId, state.weekStart, {
+      days: state.days,
+      notices: state.notices,
+      finishDate: $("finish").value,
+    });
+    sync(`保存しました ${shortTime(at)}`);
+  } catch (err) {
+    sync("保存できませんでした。電波を確かめてください。入力は画面に残っています。");
+    console.error(err);
+  }
+}
+
+$("reload").addEventListener("click", loadCurrentWeek);
+
+/**
+ * 画面を閉じる前に、保存待ちが残っていたら知らせる。
+ *
+ * 待ち時間のあいだに閉じられると、最後の入力が消える。
+ */
+window.addEventListener("beforeunload", (e) => {
+  if (saveTimer !== null && $("sync").textContent.startsWith("保存待ち")) {
+    e.preventDefault();
+  }
+});
+
 /* ---- 立ち上げ -------------------------------------------- */
 
 function start() {
@@ -214,13 +327,14 @@ function start() {
   $("cure-walk").value = String(saved.cure.walk);
   $("cure-car").value = String(saved.cure.car);
 
-  // URLに入っていれば、お客様名と完成予定を埋める
+  // 宛名はURLから。完成予定は保存されていればそちらが勝つ（loadCurrentWeek で入る）
   $("customer").value = params.get("c") ?? "";
   $("finish").value = parseISODate(params.get("f") ?? "") ? params.get("f") : "";
 
   renderWeek();
   renderNotices();
   render();
+  loadCurrentWeek();
 }
 
 /* ---- 週 -------------------------------------------------- */
@@ -231,9 +345,12 @@ function renderWeek() {
 }
 
 function moveWeek(delta) {
+  // 待ちを捨てる。移る前の週の内容を、移った先へ書いてしまわないため
+  clearTimeout(saveTimer);
   state.weekStart = addDays(state.weekStart, delta * DAYS_IN_WEEK);
   renderWeek();
   render();
+  loadCurrentWeek();
 }
 
 $("week-prev").addEventListener("click", () => moveWeek(-1));
@@ -270,6 +387,7 @@ function renderDays() {
         state.days[i].work = works;
         renderDays();
         render();
+        scheduleSave();
       });
       toggle.append(b);
     }
@@ -283,6 +401,7 @@ function renderDays() {
     memo.addEventListener("input", () => {
       state.days[i].memo = memo.value;
       render();
+      scheduleSave();
     });
 
     row.append(date, toggle, memo);
@@ -343,9 +462,18 @@ function renderNotices() {
       state.notices[i].type = kind.value;
       syncDetail();
       render();
+      scheduleSave();
     });
-    date.addEventListener("change", () => { state.notices[i].date = date.value; render(); });
-    detail.addEventListener("input", () => { state.notices[i].detail = detail.value; render(); });
+    date.addEventListener("change", () => {
+      state.notices[i].date = date.value;
+      render();
+      scheduleSave();
+    });
+    detail.addEventListener("input", () => {
+      state.notices[i].detail = detail.value;
+      render();
+      scheduleSave();
+    });
 
     const remove = document.createElement("button");
     remove.type = "button";
@@ -355,6 +483,7 @@ function renderNotices() {
       state.notices.splice(i, 1);
       renderNotices();
       render();
+      scheduleSave();
     });
 
     panel.append(kindField, dateField, detailField, remove);
@@ -372,6 +501,7 @@ $("add-notice").addEventListener("click", () => {
   });
   renderNotices();
   render();
+  scheduleSave();
 });
 
 /* ---- 文面 ------------------------------------------------ */
@@ -405,9 +535,12 @@ function render() {
   renderRoomUrl();
 }
 
-for (const id of ["customer", "finish"]) {
-  $(id).addEventListener("input", render);
-}
+$("copy").addEventListener("click", () =>
+  copyFrom($("preview"), $("copy-note"), state.kind === "report" ? "社内報告用" : "お客様連絡用"));
+
+// お客様名はURLに入るもので、保存の対象ではない
+$("customer").addEventListener("input", render);
+$("finish").addEventListener("input", () => { render(); scheduleSave(); });
 for (const id of ["tone", "emoji", "show-memo", "cure-walk", "cure-car"]) {
   $(id).addEventListener("input", () => { saveSettings(); render(); });
 }
@@ -418,10 +551,10 @@ for (const id of ["tone", "emoji", "show-memo", "cure-walk", "cure-car"]) {
  * 現場のスマホでは、機種や設定でコピーが使えないことがある。
  * **できませんでした、で終わらせない**ように、手でコピーできる形にしておく。
  */
-async function copyFrom(element, note) {
+async function copyFrom(element, note, what = "") {
   try {
     await navigator.clipboard.writeText(element.textContent || element.value);
-    note.textContent = "コピーしました。トークルームに貼ってください。";
+    note.textContent = `${what}をコピーしました。トークルームに貼ってください。`;
   } catch {
     if (element.select) {
       element.select();
@@ -437,12 +570,20 @@ async function copyFrom(element, note) {
   }
 }
 
-$("copy").addEventListener("click", () => copyFrom($("preview"), $("copy-note")));
-
 /* ---- このルーム用のURL ----------------------------------- */
+
+/**
+ * 作るURLに入れるトークルームID。
+ *
+ * すでにルームのURLで開いているならそれを引き継ぐ。**引き継がないと
+ * 新しいIDになり、それまでに入力したものが見えなくなる。**
+ * 新しく作る場合は、開いている間は同じIDを使い回す（押すたびに変わらないように）。
+ */
+const urlRoomId = state.roomId ?? newRoomId();
 
 function renderRoomUrl() {
   const url = new URL(location.pathname, location.origin);
+  url.searchParams.set("r", urlRoomId);
   const customer = $("customer").value.trim();
   const finish = $("finish").value;
   if (customer) url.searchParams.set("c", customer);
@@ -450,7 +591,8 @@ function renderRoomUrl() {
   $("room-url").value = url.href;
 }
 
-$("copy-url").addEventListener("click", () => copyFrom($("room-url"), $("url-note")));
+$("copy-url").addEventListener("click", () =>
+  copyFrom($("room-url"), $("url-note"), "URL"));
 $("room-url").addEventListener("focus", () => $("room-url").select());
 
 start();
