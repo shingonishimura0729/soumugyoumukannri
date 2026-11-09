@@ -11,6 +11,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  WATER_GUIDE_URL,
   buildNoticeMessage,
   buildWeeklyMessage,
   emptyDays,
@@ -170,6 +171,18 @@ describe("buildWeeklyMessage", () => {
     });
     assert.ok(text.includes("【ご注意いただきたい点】"));
     assert.ok(text.includes("■ 水道使用不可"));
+  });
+
+  it("水道使用不可には、お送りする資料のURLが入る", () => {
+    const text = buildWeeklyMessage({
+      ...base,
+      notices: [{ id: "n1", type: "water", date: "2026-10-01" }],
+    });
+    /**
+     * **URLは単独の行であること。**
+     * 前に文字や空白が付くと、トークアプリによってはリンクとして押せなくなる。
+     */
+    assert.ok(text.split("\n").includes(WATER_GUIDE_URL));
   });
 });
 

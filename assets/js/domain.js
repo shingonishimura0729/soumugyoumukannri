@@ -155,6 +155,15 @@ export const NOTICE_LABELS = {
   other: "その他",
 };
 
+/**
+ * 水道工事後の手引き（`renraku/water.html`）のURL。
+ *
+ * **文面に入れてトークに貼るので、どこで開いても通る絶対URLにする。**
+ * 相対パスだと、貼られた先では開けない。置き場所を変えたらここも変えること。
+ */
+export const WATER_GUIDE_URL =
+  "https://shingonishimura0729.github.io/soumugyoumukannri/renraku/water.html";
+
 /** コンクリート養生の既定の日数 */
 export const CURE_DEFAULT = { walk: 2, car: 7 };
 
@@ -194,10 +203,17 @@ export function noticeLines(notice) {
       return lines;
     }
     case NOTICE_TYPES.WATER:
+      /**
+       * 手引きのURLを文面に入れる。
+       *
+       * **URLは単独の行にする。** 前に文字や空白があると、
+       * トークアプリによってはリンクとして押せなくなる。
+       */
       return [
         formatDayLabel(notice.date) || "（日程調整中）",
         "※作業中、一時的に水道が使えない時間があります",
-        "※作業後の水の出し方は、別途お送りする「水道工事後のご使用について」をご覧ください",
+        "※作業後の水の出し方は、下記をご覧ください",
+        WATER_GUIDE_URL,
       ];
     case NOTICE_TYPES.HOME:
       return [

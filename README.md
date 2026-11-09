@@ -68,6 +68,20 @@ URLを作る枠しか出ません。
 文体・絵文字の有無・コンクリート養生の日数は、**その端末のブラウザ**に覚えます。
 他の方の画面は変わりません。
 
+### 水道の資料は、文面のリンクで渡します
+
+「水道使用不可」を足すと、文面に
+`https://shingonishimura0729.github.io/soumugyoumukannri/renraku/water.html`
+が入ります。トークに貼れば、プランナーもお客様もその場で開けます。
+
+資料そのものは `renraku/water.html`（スマホでそのまま読める形）。
+中身は旧アプリに埋め込まれていたPDFと同じで、そのPDF（`renraku/water-guide.pdf`）も
+同じ場所に置いてあり、ページから保存・印刷できます。
+
+**URLは `domain.js` の `WATER_GUIDE_URL` に書いてあります。**
+置き場所を変えるときは、そこも一緒に変えてください。文面に入るのは絶対URLです
+（相対パスだと、貼られた先では開けません）。
+
 ### スマホでの操作について
 
 - ○×を続けて押しても画面が拡大しないよう、`touch-action: manipulation` を入れてあります。
@@ -140,6 +154,8 @@ npx serve .       # あるいは python -m http.server
 ```
 index.html                    入口
 renraku/index.html            本体。画面はこれ1枚
+renraku/water.html            お客様へお送りする「水道工事後のご使用について」
+renraku/water-guide.pdf       同じ中身のPDF。water.html から保存できる
 assets/js/domain.js           日付の計算と文面の組み立て。画面も保存も持ち込まない
 assets/js/store.js            入力の保存と読み込み（Firestore）
 assets/js/firebase-config.js  接続先。ここだけを書き替える

@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>水道工事後のご使用について｜アーキガーデン</title>
+<meta name="description" content="水道工事のあと、最初に水を流していただく手順のご案内です。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E💧%3C/text%3E%3C/svg%3E">
+<style>
+/*
+  お客様が読む資料。トークに貼ったリンクから、スマホでそのまま開く。
+  アプリ本体とは別の見た目にしてある（画面ではなく「紙」として読まれるため）。
+  印刷してお渡しすることもあるので、印刷用の指定も入れてある。
+*/
+:root {
+  --green: #556529;
+  --green-dark: #414f1f;
+  --green-soft: #eef0e4;
+  --paper: #faf9f5;
+  --card: #ffffff;
+  --ink: #2b2a26;
+  --muted: #6f6c63;
+  --line: #e2dfd5;
+  --warn-soft: #f7efe4;
+  --warn-line: #e4c9a6;
+  --jp: system-ui, -apple-system, "Segoe UI", "Hiragino Sans", "Yu Gothic UI", Meiryo, sans-serif;
+}
+* { box-sizing: border-box }
+body {
+  margin: 0; background: var(--paper); color: var(--ink);
+  font-family: var(--jp); line-height: 1.85; font-size: 16px;
+  -webkit-text-size-adjust: 100%;
+}
+.wrap { max-width: 760px; margin: 0 auto; padding: 0 16px 56px }
+
+/* 表紙 */
+header { border-bottom: 2px solid var(--green); padding: 20px 0 14px; margin-bottom: 26px }
+.brand { font-size: 12px; letter-spacing: .22em; color: var(--green); font-weight: 600 }
+h1 { font-size: 23px; margin: 10px 0 6px; letter-spacing: .02em }
+.lead { margin: 0; color: var(--muted); font-size: 14px }
+
+.intro { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; margin-bottom: 24px }
+.intro p { margin: 0 }
+
+/* 3つの流れ */
+.flow {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  background: var(--green-soft); border-radius: 14px; padding: 18px 12px; margin-bottom: 28px;
+}
+.flow .step { text-align: center; flex: 0 1 150px }
+.flow .n {
+  width: 44px; height: 44px; border-radius: 50%; background: var(--green); color: #fff;
+  font-size: 19px; font-weight: 600; display: flex; align-items: center; justify-content: center;
+  margin: 0 auto 7px;
+}
+.flow .t { font-size: 13.5px; font-weight: 600; line-height: 1.5 }
+.flow .arrow { color: var(--green); font-size: 19px; flex: 0 0 auto }
+
+/* STEP のかたまり */
+.step-card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 18px; margin-bottom: 18px }
+.badge {
+  display: inline-block; background: var(--green); color: #fff; font-size: 11.5px; font-weight: 600;
+  letter-spacing: .14em; padding: 4px 14px; border-radius: 999px; margin-bottom: 10px;
+}
+.step-card h2 { font-size: 17px; margin: 0 0 12px; line-height: 1.6 }
+.step-card ul { margin: 0; padding-left: 1.3em }
+.step-card li { margin-bottom: 7px }
+.step-card li:last-child { margin-bottom: 0 }
+.step-card p { margin: 0 0 10px }
+.step-card p:last-child { margin-bottom: 0 }
+strong { color: var(--green-dark) }
+
+/* 白く濁る・赤茶色に濁る */
+.two { display: grid; grid-template-columns: 1fr; gap: 12px }
+.case { border-radius: 12px; padding: 14px 16px }
+.case.white { background: var(--green-soft) }
+.case.rust { background: var(--warn-soft); border: 1px solid var(--warn-line) }
+.case h3 { margin: 0 0 6px; font-size: 14.5px }
+.case p { margin: 0; font-size: 14px }
+
+/* こんなときは */
+.call { background: var(--green); color: #fff; border-radius: 14px; padding: 20px 18px; margin: 26px 0 20px }
+.call h2 { margin: 0 0 12px; font-size: 16.5px; color: #fff }
+.call ul { margin: 0; padding-left: 1.3em }
+.call li { margin-bottom: 7px }
+.call li:last-child { margin-bottom: 0 }
+.call .tail { margin: 14px 0 0; font-size: 14px; opacity: .92 }
+
+.note { color: var(--muted); font-size: 13px; margin: 0 0 24px }
+
+/* 保存・印刷 */
+.tools { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 26px }
+.btn {
+  appearance: none; font: inherit; font-size: 14px; cursor: pointer; text-decoration: none;
+  border: 1px solid var(--green); border-radius: 10px; padding: 11px 18px;
+  background: var(--card); color: var(--green-dark); display: inline-block;
+}
+.btn:hover { background: var(--green-soft) }
+.btn.p { background: var(--green); border-color: var(--green); color: #fff; font-weight: 600 }
+
+footer { border-top: 1px solid var(--line); padding-top: 14px; text-align: center; color: var(--muted); font-size: 12px }
+footer .brand { display: block; margin-bottom: 4px }
+
+@media (min-width: 620px) {
+  body { font-size: 16.5px }
+  h1 { font-size: 27px }
+  .two { grid-template-columns: 1fr 1fr }
+}
+@media (max-width: 480px) {
+  .flow { flex-direction: column; gap: 4px }
+  .flow .arrow { transform: rotate(90deg) }
+  .flow .step { flex: none }
+}
+@media print {
+  body { background: #fff; font-size: 11pt; line-height: 1.6 }
+  .tools { display: none }
+  .step-card, .intro { break-inside: avoid; border-color: #ccc }
+  .call { background: #fff; color: var(--ink); border: 2px solid var(--green) }
+  .call h2 { color: var(--green-dark) }
+  .wrap { padding-bottom: 0 }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div class="brand">ARCHI GARDEN</div>
+  <h1>水道工事後のご使用について</h1>
+  <p class="lead">安心してお使いいただくために、最初だけご確認ください。</p>
+</header>
+
+<div class="intro">
+  <p>水道工事のあとは、配管の中に空気が入ったり、一時的に水が濁ったりすることがあります。ほとんどの場合は一時的なものですので、下記の手順で水を流してからご使用ください。</p>
+</div>
+
+<div class="flow">
+  <div class="step"><div class="n">1</div><div class="t">まず「水」を流す</div></div>
+  <div class="arrow">→</div>
+  <div class="step"><div class="n">2</div><div class="t">水の状態を確認</div></div>
+  <div class="arrow">→</div>
+  <div class="step"><div class="n">3</div><div class="t">通常どおり使用</div></div>
+</div>
+
+<section class="step-card">
+  <div class="badge">STEP 1</div>
+  <h2>最初は「水」だけを流してください</h2>
+  <ul>
+    <li>屋外の<strong>立水栓・散水栓</strong>、または浄水器や給湯器がついていない蛇口を使います。</li>
+    <li><strong>お湯・トイレ・給湯器・浄水器は、最初の水出しが終わるまで使用しないでください。</strong></li>
+    <li><strong>5分ほど</strong>を目安に、水が透明になるまで流してください。</li>
+  </ul>
+</section>
+
+<section class="step-card">
+  <div class="badge">STEP 2</div>
+  <h2>水の色と音を確認してください</h2>
+  <div class="two">
+    <div class="case white">
+      <h3>白く濁っている場合</h3>
+      <p>透明なコップに取り、下の方から徐々に透明になれば、配管内の空気が混ざっている状態です。しばらくすると落ち着きます。</p>
+    </div>
+    <div class="case rust">
+      <h3>赤茶色に濁っている場合</h3>
+      <p>配管内の鉄さびなどが一時的に混ざっている可能性があります。透明になるまで水を流し、濁っている間は飲用をお控えください。</p>
+    </div>
+  </div>
+</section>
+
+<section class="step-card">
+  <div class="badge">STEP 3</div>
+  <h2>透明になったら、通常どおりご使用いただけます</h2>
+  <ul>
+    <li>水が透明になり、「ボコボコ」という音も落ち着いたら通常どおりお使いいただけます。</li>
+    <li>その後、他の蛇口・シャワー・トイレ・給湯器・浄水器も順番に確認してください。</li>
+  </ul>
+</section>
+
+<section class="call">
+  <h2>こんなときは、アーキガーデンまでご連絡ください</h2>
+  <ul>
+    <li>しばらく水を流しても濁りがなくならない</li>
+    <li>水が出ない、または水の勢いが極端に弱い</li>
+    <li>蛇口や配管まわりから水漏れしている</li>
+    <li>白い濁りが、コップに置いても透明にならない</li>
+    <li>異物が出る、強いにおいや味が続く</li>
+  </ul>
+  <p class="tail">工事後も安心してお使いいただけるよう、アーキガーデンでサポートいたします。</p>
+</section>
+
+<p class="note">※設備の仕様によって使用方法が異なる場合は、各機器の取扱説明書を優先してください。</p>
+
+<div class="tools">
+  <a class="btn p" href="water-guide.pdf" download="アーキガーデン_水道工事後のご使用について.pdf">PDFで保存する</a>
+  <button class="btn" type="button" id="print">この紙を印刷する</button>
+</div>
+
+<footer>
+  <span class="brand">ARCHI GARDEN</span>
+  株式会社アーキガーデン
+</footer>
+
+</div>
+<script>
+document.getElementById("print").addEventListener("click", () => window.print());
+</script>
+</body>
+</html>

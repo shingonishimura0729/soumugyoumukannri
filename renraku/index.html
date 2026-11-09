@@ -137,7 +137,7 @@
  */
 
 import {
-  CURE_DEFAULT, DAYS_IN_WEEK, NOTICE_LABELS, NOTICE_TYPES,
+  CURE_DEFAULT, DAYS_IN_WEEK, NOTICE_LABELS, NOTICE_TYPES, WATER_GUIDE_URL,
   addDays, buildWeeklyMessage, emptyDays, fillCureDates,
   formatDayLabel, parseISODate, upcomingWeekStart, weekDates, weekLabel,
 } from "../assets/js/domain.js";
@@ -493,11 +493,27 @@ function renderNotices() {
     const dateField = field("日付", date);
     const detailField = field("内容", detail);
 
+    /**
+     * 水道のときだけ、お客様へお送りする手引きへのリンクを出す。
+     *
+     * 同じURLが文面にも入る。ここに出すのは、**貼る前に中身を確かめられる**ようにするため。
+     */
+    const guide = document.createElement("p");
+    guide.style.cssText = "margin:0 0 12px";
+    const guideLink = document.createElement("a");
+    guideLink.className = "btn";
+    guideLink.href = WATER_GUIDE_URL;
+    guideLink.target = "_blank";
+    guideLink.rel = "noopener";
+    guideLink.textContent = "お送りする資料を見る";
+    guide.append(guideLink);
+
     /** 打設と断水は日付だけで足りる。内容欄を出すと何を書くか迷わせる */
     const syncDetail = () => {
       const needsDetail =
         kind.value === NOTICE_TYPES.HOME || kind.value === NOTICE_TYPES.OTHER;
       detailField.classList.toggle("hidden", !needsDetail);
+      guide.classList.toggle("hidden", kind.value !== NOTICE_TYPES.WATER);
     };
 
     kind.addEventListener("change", () => {
@@ -528,7 +544,7 @@ function renderNotices() {
       scheduleSave();
     });
 
-    panel.append(kindField, dateField, detailField, remove);
+    panel.append(kindField, dateField, detailField, guide, remove);
     box.append(panel);
     syncDetail();
   });
