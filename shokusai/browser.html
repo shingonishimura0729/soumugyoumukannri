@@ -14,11 +14,11 @@
   header { background:var(--head); color:#fff; padding:12px 16px; }
   header h1 { margin:0; font-size:18px; }
   header p { margin:2px 0 0; font-size:12px; opacity:.85; }
-  main { max-width:720px; margin:0 auto; padding:12px 16px 48px; }
+  main { max-width:760px; margin:0 auto; padding:12px 16px 48px; }
   .back { display:inline-block; margin:4px 0 8px; color:var(--edit); font-weight:bold; text-decoration:none; }
   section { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:12px 14px; margin:12px 0; }
   h2 { font-size:16px; margin:0 0 6px; }
-  h3 { font-size:14.5px; margin:12px 0 4px; color:var(--head); }
+  h3 { font-size:14.5px; margin:14px 0 4px; color:var(--head); }
   @media (prefers-color-scheme: dark) { h3 { color:#b9cdb0; } }
   ol { margin:4px 0; padding-left:1.4em; }
   li { margin:3px 0; }
@@ -26,6 +26,25 @@
   .why b { color:var(--warn); }
   .key { display:inline-block; padding:0 6px; border:1px solid var(--line); border-radius:6px; background:var(--soft); font-weight:bold; white-space:nowrap; }
   .small { font-size:12.5px; color:var(--sub); }
+  /* 手順の絵：携帯では2枚ずつ横に並べる */
+  .steps { display:grid; grid-template-columns:repeat(auto-fill, minmax(150px, 1fr)); gap:10px; margin:8px 0 4px; }
+  figure { margin:0; text-align:center; }
+  figure svg { width:100%; max-width:200px; height:auto; display:block; margin:0 auto; }
+  figcaption { font-size:12.5px; margin-top:4px; line-height:1.5; }
+  figcaption b { color:var(--warn); }
+  .shot { margin:8px 0; }
+  .shot img { width:100%; height:auto; display:block; border:1px solid var(--line); border-radius:8px; }
+  .shot figcaption { text-align:left; }
+  .note-img { font-size:11.5px; color:var(--sub); margin:2px 0 0; }
+  /* 絵の部品 */
+  .fr { fill:#1d1d1f; } .sc { fill:#fff; } .bar { fill:#f1f1f3; } .hd { fill:#4a6650; } .ln { fill:#e3e6de; }
+  .t { font-size:11px; fill:#333; font-family:system-ui,"Hiragino Sans","Yu Gothic UI",sans-serif; }
+  .ts { font-size:9px; fill:#666; font-family:system-ui,"Hiragino Sans","Yu Gothic UI",sans-serif; }
+  .tw { font-size:10px; fill:#fff; font-family:system-ui,"Hiragino Sans","Yu Gothic UI",sans-serif; }
+  .tb { font-size:12px; fill:#0a64d6; font-family:system-ui,"Hiragino Sans","Yu Gothic UI",sans-serif; }
+  .dim { fill:rgba(0,0,0,.35); } .sh { fill:#fff; } .row { fill:#f7f7f9; stroke:#e2e2e6; }
+  .ring { fill:none; stroke:#e53935; stroke-width:3; }
+  .bub { fill:#e9f0ff; } .ic { fill:none; stroke:#0a64d6; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
 </style>
 </head>
 <body>
@@ -42,48 +61,153 @@
     （Google の決まりで、アプリの中の画面からのログインは断られます）<br>
     そのため、チェックを付ける・物件を直す・図面を置くことができません。図面のPDFもうまく開かないことがあります。<br>
     <b>Safari（iPhone）や Chrome（Android・パソコン）などのブラウザで開いてください。</b></p>
+    <figure class="shot">
+      <img src="img/notice.jpg" alt="アプリの一番上に出ている、ブラウザで開くようにという注意書き" loading="lazy">
+      <figcaption class="small">アプリの一番上に、この注意書きが出ています。</figcaption>
+    </figure>
     <p class="small">見るだけなら、アプリの中の画面でも見られます。</p>
   </section>
 
   <section>
     <h2>iPhone の場合</h2>
+
     <h3>方法1　「Safariで開く」を選ぶ</h3>
-    <ol>
-      <li>LINE WORKS のトークで、アプリのリンクを押して開きます。</li>
-      <li>画面の右上か右下にある <span class="key">…</span> または共有のボタン <span class="key">□↑</span> を押します。</li>
-      <li><span class="key">Safariで開く</span>（または <span class="key">ブラウザで開く</span>）を押します。</li>
-    </ol>
+    <div class="steps">
+      <figure>
+        <svg viewBox="0 0 220 400" role="img" aria-label="LINE WORKS の中の画面。右下の「…」を押す">
+          <rect class="fr" x="2" y="2" width="216" height="396" rx="28"/><rect class="sc" x="10" y="12" width="200" height="376" rx="20"/>
+          <rect class="bar" x="10" y="12" width="200" height="44" rx="20"/><rect class="bar" x="10" y="36" width="200" height="20"/>
+          <text class="t" x="22" y="44">✕</text><text class="ts" x="110" y="44" text-anchor="middle">植栽手配 選定チェック</text>
+          <rect class="hd" x="10" y="56" width="200" height="40"/><text class="tw" x="20" y="80">植栽手配　選定チェック</text>
+          <rect class="ln" x="22" y="110" width="176" height="44" rx="6"/><rect class="ln" x="22" y="164" width="176" height="44" rx="6"/><rect class="ln" x="22" y="218" width="176" height="44" rx="6"/><rect class="ln" x="22" y="272" width="176" height="44" rx="6"/>
+          <rect class="bar" x="10" y="336" width="200" height="52" rx="20"/><rect class="bar" x="10" y="336" width="200" height="20"/>
+          <text class="tb" x="34" y="366">‹</text><text class="tb" x="70" y="366">›</text><text class="tb" x="122" y="366">↻</text>
+          <text class="tb" x="178" y="364" font-weight="bold">…</text>
+          <circle class="ring" cx="181" cy="360" r="15"/>
+        </svg>
+        <figcaption>① トークのリンクを押して開き、<b>右下（または右上）の「…」</b>を押す</figcaption>
+      </figure>
+      <figure>
+        <svg viewBox="0 0 220 400" role="img" aria-label="出てきた一覧から「Safariで開く」を押す">
+          <rect class="fr" x="2" y="2" width="216" height="396" rx="28"/><rect class="sc" x="10" y="12" width="200" height="376" rx="20"/>
+          <rect class="hd" x="10" y="56" width="200" height="40"/><rect class="ln" x="22" y="110" width="176" height="44" rx="6"/><rect class="ln" x="22" y="164" width="176" height="44" rx="6"/>
+          <rect class="dim" x="10" y="12" width="200" height="376" rx="20"/>
+          <rect class="sh" x="18" y="200" width="184" height="180" rx="14"/>
+          <rect class="row" x="26" y="210" width="168" height="34" rx="8"/><text class="t" x="40" y="232">Safariで開く</text>
+          <rect class="row" x="26" y="250" width="168" height="34" rx="8"/><text class="t" x="40" y="272">リンクをコピー</text>
+          <rect class="row" x="26" y="290" width="168" height="34" rx="8"/><text class="t" x="40" y="312">共有</text>
+          <rect class="row" x="26" y="334" width="168" height="34" rx="8"/><text class="t" x="110" y="356" text-anchor="middle">キャンセル</text>
+          <rect class="ring" x="22" y="206" width="176" height="42" rx="10"/>
+        </svg>
+        <figcaption>② <b>「Safariで開く」</b>（または「ブラウザで開く」）を押す</figcaption>
+      </figure>
+    </div>
+
     <h3>方法2　リンクをコピーして Safari に貼る（方法1のボタンが見当たらないとき）</h3>
-    <ol>
-      <li>トークのリンクを<b>長押し</b>して、<span class="key">コピー</span> を押します。</li>
-      <li><b>Safari</b> を開き、一番上（または下）のアドレス欄を押します。</li>
-      <li>欄を長押しして <span class="key">ペースト</span> を押し、<span class="key">開く</span> を押します。</li>
-    </ol>
-    <h3>次から楽に開くには</h3>
-    <ol>
-      <li>Safari で開いたまま、下の共有ボタン <span class="key">□↑</span> を押します。</li>
-      <li><span class="key">ホーム画面に追加</span> を押すと、ホーム画面にアイコンができます。</li>
-    </ol>
+    <div class="steps">
+      <figure>
+        <svg viewBox="0 0 220 400" role="img" aria-label="トークのリンクを長押しして「コピー」を押す">
+          <rect class="fr" x="2" y="2" width="216" height="396" rx="28"/><rect class="sc" x="10" y="12" width="200" height="376" rx="20"/>
+          <rect class="bar" x="10" y="12" width="200" height="44" rx="20"/><rect class="bar" x="10" y="36" width="200" height="20"/><text class="ts" x="110" y="44" text-anchor="middle">トーク</text>
+          <rect class="ln" x="20" y="74" width="120" height="30" rx="12"/>
+          <rect class="dim" x="10" y="12" width="200" height="376" rx="20"/>
+          <rect class="bub" x="50" y="150" width="150" height="52" rx="14"/>
+          <text class="tb" x="60" y="172" font-size="10">https://shingoni</text><text class="tb" x="60" y="188" font-size="10">shimura0729…</text>
+          <rect class="sh" x="70" y="214" width="130" height="118" rx="12"/>
+          <text class="t" x="84" y="238">コピー</text><rect class="ln" x="78" y="248" width="114" height="1"/>
+          <text class="t" x="84" y="270">共有</text><rect class="ln" x="78" y="280" width="114" height="1"/>
+          <text class="t" x="84" y="302">返信</text>
+          <rect class="ring" x="74" y="220" width="122" height="28" rx="8"/>
+        </svg>
+        <figcaption>① トークのリンクを<b>長押し</b>して<b>「コピー」</b></figcaption>
+      </figure>
+      <figure>
+        <svg viewBox="0 0 220 400" role="img" aria-label="Safari のアドレス欄を長押しして「ペーストして開く」を押す">
+          <rect class="fr" x="2" y="2" width="216" height="396" rx="28"/><rect class="sc" x="10" y="12" width="200" height="376" rx="20"/>
+          <rect class="ln" x="22" y="40" width="176" height="60" rx="8"/><rect class="ln" x="22" y="112" width="176" height="60" rx="8"/><rect class="ln" x="22" y="184" width="176" height="60" rx="8"/>
+          <rect class="sh" x="40" y="262" width="140" height="36" rx="10" stroke="#ddd"/><text class="t" x="110" y="285" text-anchor="middle" font-weight="bold">ペーストして開く</text>
+          <rect class="ring" x="36" y="258" width="148" height="44" rx="12"/>
+          <rect class="bar" x="10" y="312" width="200" height="76" rx="20"/><rect class="bar" x="10" y="312" width="200" height="20"/>
+          <rect class="sh" x="22" y="320" width="176" height="30" rx="10"/><text class="ts" x="110" y="339" text-anchor="middle">検索 / Webサイト名を入力</text>
+          <text class="tb" x="30" y="374">‹</text><text class="tb" x="64" y="374">›</text>
+          <path class="ic" d="M104 372 v-12 m-5 5 l5 -5 l5 5 M98 366 h-3 v10 h18 v-10 h-3"/>
+        </svg>
+        <figcaption>② <b>Safari</b> を開き、アドレス欄を<b>長押し</b>して<b>「ペーストして開く」</b></figcaption>
+      </figure>
+    </div>
+
+    <h3>次から楽に開くには（ホーム画面に追加）</h3>
+    <div class="steps">
+      <figure>
+        <svg viewBox="0 0 220 400" role="img" aria-label="Safari の下の共有ボタンを押す">
+          <rect class="fr" x="2" y="2" width="216" height="396" rx="28"/><rect class="sc" x="10" y="12" width="200" height="376" rx="20"/>
+          <rect class="hd" x="10" y="12" width="200" height="56" rx="20"/><rect class="hd" x="10" y="40" width="200" height="28"/><text class="tw" x="22" y="56">植栽手配　選定チェック</text>
+          <rect class="ln" x="22" y="84" width="176" height="56" rx="8"/><rect class="ln" x="22" y="150" width="176" height="56" rx="8"/><rect class="ln" x="22" y="216" width="176" height="56" rx="8"/>
+          <rect class="bar" x="10" y="312" width="200" height="76" rx="20"/><rect class="bar" x="10" y="312" width="200" height="20"/>
+          <rect class="sh" x="22" y="320" width="176" height="30" rx="10"/><text class="ts" x="110" y="339" text-anchor="middle">shingonishimura0729.github.io</text>
+          <text class="tb" x="30" y="374">‹</text><text class="tb" x="64" y="374">›</text>
+          <path class="ic" d="M110 374 v-14 m-5 5 l5 -5 l5 5 M104 366 h-3 v11 h18 v-11 h-3"/>
+          <circle class="ring" cx="110" cy="368" r="15"/>
+          <text class="tb" x="150" y="374">□</text><text class="tb" x="182" y="374">⧉</text>
+        </svg>
+        <figcaption>① Safari で開いたまま、下の<b>共有ボタン</b>を押す</figcaption>
+      </figure>
+      <figure>
+        <svg viewBox="0 0 220 400" role="img" aria-label="一覧を下に動かして「ホーム画面に追加」を押す">
+          <rect class="fr" x="2" y="2" width="216" height="396" rx="28"/><rect class="sc" x="10" y="12" width="200" height="376" rx="20"/>
+          <rect class="dim" x="10" y="12" width="200" height="376" rx="20"/>
+          <rect class="sh" x="10" y="120" width="200" height="268" rx="18"/>
+          <text class="ts" x="24" y="146">植栽手配　選定チェック</text>
+          <rect class="row" x="20" y="160" width="180" height="32" rx="8"/><text class="t" x="32" y="181">コピー</text>
+          <rect class="row" x="20" y="198" width="180" height="32" rx="8"/><text class="t" x="32" y="219">リーディングリストに追加</text>
+          <rect class="row" x="20" y="236" width="180" height="32" rx="8"/><text class="t" x="32" y="257">ブックマークを追加</text>
+          <rect class="row" x="20" y="274" width="180" height="32" rx="8"/><text class="t" x="32" y="295">お気に入りに追加</text>
+          <rect class="row" x="20" y="312" width="180" height="32" rx="8"/><text class="t" x="32" y="333" font-weight="bold">ホーム画面に追加</text>
+          <rect class="ring" x="16" y="308" width="188" height="40" rx="10"/>
+        </svg>
+        <figcaption>② 一覧を下に動かして<b>「ホーム画面に追加」</b>→ 右上の「追加」</figcaption>
+      </figure>
+    </div>
     <p class="small">ホーム画面のアイコンから開いてログインできないときは、Safari で開いてください。Safari の「ブックマーク」に入れておいても便利です。</p>
   </section>
 
   <section>
     <h2>Android の場合</h2>
     <h3>方法1　「ブラウザで開く」を選ぶ</h3>
-    <ol>
-      <li>LINE WORKS のトークで、アプリのリンクを押して開きます。</li>
-      <li>画面の右上にある <span class="key">︙</span> または <span class="key">…</span> を押します。</li>
-      <li><span class="key">ブラウザで開く</span>（または <span class="key">Chromeで開く</span>）を押します。</li>
-    </ol>
+    <div class="steps">
+      <figure>
+        <svg viewBox="0 0 220 400" role="img" aria-label="右上の「︙」を押して「ブラウザで開く」を押す">
+          <rect class="fr" x="2" y="2" width="216" height="396" rx="20"/><rect class="sc" x="10" y="12" width="200" height="376" rx="12"/>
+          <rect class="bar" x="10" y="12" width="200" height="40" rx="12"/><rect class="bar" x="10" y="32" width="200" height="20"/>
+          <text class="t" x="22" y="38">✕</text><text class="ts" x="44" y="38">植栽手配 選定チェック</text><text class="t" x="192" y="38" font-weight="bold">⋮</text>
+          <circle class="ring" cx="194" cy="34" r="12"/>
+          <rect class="hd" x="10" y="52" width="200" height="36"/>
+          <rect class="ln" x="22" y="100" width="176" height="44" rx="6"/><rect class="ln" x="22" y="154" width="176" height="44" rx="6"/>
+          <rect class="sh" x="88" y="52" width="116" height="104" rx="6" stroke="#ccc"/>
+          <text class="t" x="98" y="76">再読み込み</text><text class="t" x="98" y="104" font-weight="bold">ブラウザで開く</text><text class="t" x="98" y="132">リンクをコピー</text>
+          <rect class="ring" x="92" y="88" width="108" height="24" rx="6"/>
+        </svg>
+        <figcaption>右上の<b>「︙」</b>→<b>「ブラウザで開く」</b>（または「Chromeで開く」）</figcaption>
+      </figure>
+      <figure>
+        <svg viewBox="0 0 220 400" role="img" aria-label="Chrome の右上の「︙」から「ホーム画面に追加」を押す">
+          <rect class="fr" x="2" y="2" width="216" height="396" rx="20"/><rect class="sc" x="10" y="12" width="200" height="376" rx="12"/>
+          <rect class="bar" x="10" y="12" width="200" height="40" rx="12"/><rect class="bar" x="10" y="32" width="200" height="20"/>
+          <rect class="sh" x="20" y="20" width="150" height="24" rx="12"/><text class="ts" x="30" y="36">shingonishimura0729…</text><text class="t" x="192" y="38" font-weight="bold">⋮</text>
+          <circle class="ring" cx="194" cy="34" r="12"/>
+          <rect class="hd" x="10" y="52" width="200" height="36"/>
+          <rect class="ln" x="22" y="100" width="176" height="44" rx="6"/>
+          <rect class="sh" x="78" y="52" width="126" height="160" rx="6" stroke="#ccc"/>
+          <text class="t" x="88" y="76">新しいタブ</text><text class="t" x="88" y="104">ブックマーク</text><text class="t" x="88" y="132">共有…</text><text class="t" x="88" y="160" font-weight="bold">ホーム画面に追加</text><text class="t" x="88" y="188">設定</text>
+          <rect class="ring" x="82" y="144" width="118" height="24" rx="6"/>
+        </svg>
+        <figcaption>次から楽に開くには：Chrome の<b>「︙」</b>→<b>「ホーム画面に追加」</b></figcaption>
+      </figure>
+    </div>
     <h3>方法2　リンクをコピーして Chrome に貼る</h3>
     <ol>
       <li>トークのリンクを<b>長押し</b>して、<span class="key">コピー</span> を押します。</li>
       <li><b>Chrome</b> を開き、上のアドレス欄に貼り付けて開きます。</li>
-    </ol>
-    <h3>次から楽に開くには</h3>
-    <ol>
-      <li>Chrome で開いたまま、右上の <span class="key">︙</span> を押します。</li>
-      <li><span class="key">ホーム画面に追加</span> を押します。</li>
     </ol>
   </section>
 
@@ -94,12 +218,14 @@
 
   <section>
     <h2>開いたら</h2>
-    <ol>
-      <li>上の <span class="key">ログインしてチェック</span> を押し、<b>会社の Google アカウント（@archigarden.net）</b>を選びます。</li>
-      <li>使い方は、上の <span class="key">▶ 使い方動画</span> で見られます。</li>
-    </ol>
+    <figure class="shot">
+      <img src="img/login.jpg" alt="アプリの上にある「ログインしてチェック」のボタン" loading="lazy">
+      <figcaption class="small">上の <span class="key">ログインしてチェック</span> を押し、<b>会社の Google アカウント（@archigarden.net）</b>を選びます。</figcaption>
+    </figure>
+    <p class="small">使い方は、見出しの右にある <span class="key">▶ 使い方動画</span> で見られます。</p>
   </section>
 
+  <p class="note-img">※ 手順の絵はイメージです。携帯の機種やアプリの版によって、ボタンの場所や名前が少し違うことがあります。</p>
   <a class="back" id="back2" href="./">← アプリに戻る</a>
 </main>
 <script>
