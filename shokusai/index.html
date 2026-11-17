@@ -29,6 +29,19 @@
   .form .grid.two { grid-template-columns:1fr 1fr; }
   .form .grid.two label.wide { grid-column:1 / -1; }
   .bar label { font-size:12px; display:flex; align-items:center; gap:4px; }
+  #shownCount { font-size:11px; opacity:.9; }
+  /* いつ準備・いつ施工かを一目で */
+  .when { display:flex; gap:6px; flex-wrap:wrap; margin-top:3px; }
+  .when .d { font-size:12.5px; padding:2px 8px; border-radius:6px; background:var(--card); border:1px solid var(--line); color:var(--ink); white-space:nowrap; }
+  .when .d b { font-size:13.5px; }
+  .when .d em { font-style:normal; font-size:11.5px; margin-left:4px; color:var(--sub); }
+  .when .d.soon { border-color:var(--warn); }
+  .when .d.soon em { color:var(--warn); font-weight:bold; }
+  .when .d.late { background:var(--warnbg); border-color:var(--warn); }
+  .when .d.late em { color:var(--warn); font-weight:bold; }
+  .when .con { font-size:12px; color:var(--sub); align-self:center; }
+  .form .hint { font-size:10.5px; color:var(--sub); margin-top:2px; display:flex; gap:6px; align-items:center; }
+  .form .hint button { border:none; background:none; color:var(--edit); font-size:11px; padding:0; text-decoration:underline; }
   #who { font-size:11px; opacity:.9; margin-left:auto; }
   main { padding:6px 10px 40px; max-width:760px; margin:0 auto; }
   .note { font-size:12px; color:var(--sub); margin:4px 2px 6px; line-height:1.5; }
@@ -102,6 +115,20 @@
     </select>
     <label><input type="checkbox" id="hideDone"> 選び終えた邸を隠す</label>
     <span id="who"></span>
+  </div>
+  <div class="bar">
+    <select id="range" aria-label="期間で絞り込み">
+      <option value="all">期間：すべて</option>
+      <option value="prep0">準備：今日まで（遅れ含む）</option>
+      <option value="prep1">準備：明日まで</option>
+      <option value="prep3">準備：3日以内</option>
+      <option value="prep7">準備：1週間以内</option>
+      <option value="work7">施工：1週間以内</option>
+      <option value="workThis">施工：今月</option>
+      <option value="workNext">施工：来月</option>
+    </select>
+    <select id="contractor" aria-label="業者で絞り込み"><option value="">業者：すべて</option></select>
+    <span id="shownCount"></span>
   </div>
 </header>
 <main>
@@ -185,6 +212,48 @@ $("refresh").onclick = async () => {
   try { await updateDoc(ref(), { updateRequest: { atISO: new Date().toISOString(), by: shortName(user) } }); }
   catch (e) { alert("更新を頼めませんでした：" + e.code); $("refresh").disabled = false; }
 };
+for (const id of ["range", "contractor"]) {
+  $(id).onchange = () => { try { localStorage.setItem("shokusai_" + id, $(id).value); } catch {} render(); };
+}
+try { const v = localStorage.getItem("shokusai_range"); if (v) $("range").value = v; } catch {}
+
+// ---- 日付（今日から何日か）----
+const pad2 = (n) => String(n).padStart(2, "0");
+const todayKey = () => { const t = new Date(); return `${t.getFullYear()}-${pad2(t.getMonth() + 1)}-${pad2(t.getDate())}`; };
+const keyToDate = (k) => new Date(Number(k.slice(0, 4)), Number(k.slice(5, 7)) - 1, Number(k.slice(8, 10)));
+/** 今日から何日後か（日まで分からないものは null） */
+const daysFrom = (k) => (dateOf(k) ? Math.round((keyToDate(k) - keyToDate(todayKey())) / 864e5) : null);
+const WD = "日月火水木金土";
+const wd = (k) => (dateOf(k) ? `(${WD[keyToDate(k).getDay()]})` : "");
+/** 「YYYY-MM-DD」の前日 */
+const dayBefore = (k) => { if (!dateOf(k)) return ""; const d = keyToDate(k); d.setDate(d.getDate() - 1); return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`; };
+function relText(n) {
+  if (n == null) return "";
+  if (n < 0) return `${-n}日過ぎ`;
+  if (n === 0) return "今日";
+  if (n === 1) return "明日";
+  return `あと${n}日`;
+}
+/** 「準備 11/23(月) あと6日」の札 */
+function dateChip(label, text, key, warnDays) {
+  const n = daysFrom(key);
+  const c = el("span", "d" + (n != null && n < 0 ? " late" : n != null && n <= warnDays ? " soon" : ""));
+  c.append(label + " ");
+  c.append(el("b", "", text + wd(key)));
+  if (n != null) c.append(el("em", "", relText(n)));
+  return c;
+}
+/** 絞り込み */
+function passRange(p) {
+  const v = $("range").value;
+  if (v === "all") return true;
+  if (v.startsWith("prep")) { const n = daysFrom(p.prepSort); return n != null && n <= Number(v.slice(4)); }
+  if (v === "work7") { const n = daysFrom(p.workSort); return n != null && n >= 0 && n <= 7; }
+  const t = new Date(); const m = v === "workThis" ? t.getMonth() : t.getMonth() + 1;
+  const y = t.getFullYear() + (m > 11 ? 1 : 0);
+  return (p.workSort || "").slice(0, 7) === `${y}-${pad2((m % 12) + 1)}`;
+}
+
 $("hideDone").onchange = () => { try { localStorage.setItem("shokusai_hideDone", $("hideDone").checked ? "1" : ""); } catch {} render(); };
 try { $("hideDone").checked = !!localStorage.getItem("shokusai_hideDone"); } catch {}
 $("sort").onchange = () => { try { localStorage.setItem("shokusai_sort", $("sort").value); } catch {} render(); };
@@ -291,7 +360,7 @@ const rnd = () => Math.random().toString(36).slice(2, 12);
 /** 下書きと今の中身を比べて、変わったところだけを1回で書き込む */
 async function saveDraft(btn) {
   const d = draft, P = d.prop, st = stamp(), patch = {};
-  const pv = { name: P.name.normalize("NFKC").trim().slice(0, 60), work: P.work, prep: P.prep, contractor: P.contractor.trim().slice(0, 30) };
+  const pv = { name: P.name.normalize("NFKC").trim().slice(0, 60), work: P.work, prep: P.prep || dayBefore(P.work), contractor: P.contractor.trim().slice(0, 30) };
   if (!pv.name) { alert("物件名を入れてください。"); return; }
   const pid = d.id === "new" ? "p" + rnd() : d.id;
   if (d.id === "new") patch["props." + pid] = { added: true, ...pv, deleted: false, ...st };
@@ -340,10 +409,34 @@ function editForm() {
   const name = bind(input("f-name", d.prop.name, "物件名（例：〇〇様邸）"), d.prop, "name");
   const work = bind(input("", d.prop.work, ""), d.prop, "work"); work.type = "date";
   const prep = bind(input("", d.prop.prep, ""), d.prop, "prep"); prep.type = "date";
+  // 準備希望日は、基本は施工日の前日を自動で入れる。手で変えたら、その日付を優先する
+  if (d.prepAuto == null) d.prepAuto = !d.prop.prep || d.prop.prep === dayBefore(d.prop.work);
+  const hint = el("div", "hint");
+  const showHint = () => {
+    hint.innerHTML = "";
+    if (d.prepAuto) hint.append("自動：施工日の前日");
+    else {
+      hint.append("手入力");
+      const b = el("button", "", "前日に戻す"); b.type = "button";
+      b.onclick = () => { d.prepAuto = true; d.prop.prep = prep.value = dayBefore(d.prop.work); showHint(); };
+      hint.append(b);
+    }
+  };
+  work.oninput = work.onchange = () => {
+    d.prop.work = work.value;
+    if (d.prepAuto) d.prop.prep = prep.value = dayBefore(work.value);
+  };
+  prep.oninput = prep.onchange = () => {
+    d.prop.prep = prep.value;
+    d.prepAuto = !prep.value || prep.value === dayBefore(d.prop.work);
+    showHint();
+  };
+  showHint();
   const con = bind(input("", d.prop.contractor, "業者"), d.prop, "contractor");
   const grid = el("div", "grid two");
   const conLab = lab("業者", con); conLab.className = "wide";
-  grid.append(lab("施工日", work), lab("準備希望日", prep), conLab);
+  const prepLab = lab("準備希望日", prep); prepLab.append(hint);
+  grid.append(lab("施工日", work), prepLab, conLab);
   f.append(name, grid);
 
   f.append(el("div", "sec", "植栽"));
@@ -424,6 +517,13 @@ function render() {
     const r = itemsOf(p, edits);
     return { p, ...r, doneN: r.shown.filter((i) => checks[i.id]?.done).length };
   });
+  // 業者の選択肢は、今の一覧にいる業者から作る
+  const cons = [...new Set(rows.map((r) => r.p.contractor || "業者未定"))].sort((a, b) => a.localeCompare(b, "ja"));
+  let conSel = $("contractor").value;
+  try { conSel = conSel || localStorage.getItem("shokusai_contractor") || ""; } catch {}
+  $("contractor").innerHTML = "";
+  $("contractor").append(new Option("業者：すべて", ""), ...cons.map((c) => new Option(c, c)));
+  $("contractor").value = cons.includes(conSel) ? conSel : "";
   const by = $("sort").value;
   const cmp = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
   rows.sort((a, b) =>
@@ -431,10 +531,14 @@ function render() {
     : by === "name" ? a.p.name.localeCompare(b.p.name, "ja")
     : by === "todo" ? (b.shown.length - b.doneN) - (a.shown.length - a.doneN) || cmp(a.p.prepSort, b.p.prepSort)
     : cmp(a.p.prepSort, b.p.prepSort) || cmp(a.p.workSort, b.p.workSort));
+  let shownN = 0;
   for (const { p, shown, gone, doneN } of rows) {
     const isEdit = draft?.id === p.id;
     const all = shown.length > 0 && doneN === shown.length;
     if (all && $("hideDone").checked && !isEdit) continue;
+    if (!isEdit && !passRange(p)) continue;
+    if (!isEdit && $("contractor").value && (p.contractor || "業者未定") !== $("contractor").value) continue;
+    shownN++;
     const card = el("div", "card" + (all && !isEdit ? " alldone" : "") + (isEdit ? " editing" : ""));
     const ph = el("div", "ph");
     const h2 = el("h2");
@@ -448,9 +552,10 @@ function render() {
       cnt.append(pp);
     }
     h2.append(title, cnt); ph.append(h2);
-    const sub = el("div", "sub");
-    sub.innerHTML = `準備 <b>${esc(p.prepLabel)}</b>　施工 ${esc(p.workLabel)}　${esc(p.contractor || "業者未定")}`;
-    ph.append(sub);
+    // 準備は2日前から注意の色、施工は前日から
+    const when = el("div", "when");
+    when.append(dateChip("準備", p.prepLabel, p.prepSort, 2), dateChip("施工", p.workLabel, p.workSort, 1), el("span", "con", p.contractor || "業者未定"));
+    ph.append(when);
     const tags = el("div", "tags");
     if (p.watanabe) tags.append(el("span", "tag ok", "渡邉樹苗園 手配" + p.watanabe));
     if (p.source === "管理表") tags.append(el("span", "tag warn", "依頼シートなし：管理表の文から"));
@@ -466,6 +571,9 @@ function render() {
     if (gone.length) card.append(el("div", "gone", "削除した品目：" + gone.map((it) => `${it.name} ${fmtHeight(it.height)}`).join("、")));
     list.append(card);
   }
+  const filtered = $("range").value !== "all" || $("contractor").value || $("hideDone").checked;
+  $("shownCount").textContent = filtered ? `${shownN} / ${rows.length}邸を表示` : `${rows.length}邸`;
+  if (filtered && !shownN) list.append(el("p", "note", "条件に合う邸はありません。上の絞り込みを「すべて」に戻すと全部見られます。"));
   if (propsGone.length) {
     const g = el("div", "gone props");
     g.append("削除した物件：");
