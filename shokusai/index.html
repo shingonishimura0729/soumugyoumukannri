@@ -30,6 +30,9 @@
   .form .grid.two label.wide { grid-column:1 / -1; }
   .bar label { font-size:12px; display:flex; align-items:center; gap:4px; }
   #shownCount { font-size:11px; opacity:.9; }
+  .gonesel { font-size:13px; padding:6px 8px; border-radius:8px; border:1px solid var(--line); background:var(--card); color:var(--sub); max-width:100%; }
+  .gonebox { margin-top:6px; padding:8px 10px; border:1px dashed var(--line); border-radius:8px; background:var(--card); color:var(--ink); font-size:14px; }
+  .gonebox .back { margin-top:6px; font-size:13px; padding:6px 12px; border-radius:8px; border:1px solid var(--edit); background:var(--card); color:var(--edit); }
   /* いつ準備・いつ施工かを一目で */
   .when { display:flex; gap:6px; flex-wrap:wrap; margin-top:3px; }
   .when .d { font-size:12.5px; padding:2px 8px; border-radius:6px; background:var(--card); border:1px solid var(--line); color:var(--ink); white-space:nowrap; }
@@ -574,22 +577,33 @@ function render() {
   const filtered = $("range").value !== "all" || $("contractor").value || $("hideDone").checked;
   $("shownCount").textContent = filtered ? `${shownN} / ${rows.length}邸を表示` : `${rows.length}邸`;
   if (filtered && !shownN) list.append(el("p", "note", "条件に合う邸はありません。上の絞り込みを「すべて」に戻すと全部見られます。"));
+  // 削除した物件は一覧に並べず、ドロップダウンで選んだ1邸だけを出す
   if (propsGone.length) {
     const g = el("div", "gone props");
-    g.append("削除した物件：");
-    propsGone.forEach((p, n) => {
-      if (n) g.append("、");
-      g.append(el("span", "", p.name));
+    const s = document.createElement("select"); s.className = "gonesel";
+    s.append(new Option(`削除した物件（${propsGone.length}邸）を見る`, ""), ...propsGone.map((p) => new Option(p.name, p.id)));
+    if (!propsGone.some((p) => p.id === goneSel)) goneSel = "";
+    s.value = goneSel;
+    s.onchange = () => { goneSel = s.value; render(); };
+    g.append(s);
+    const p = propsGone.find((x) => x.id === goneSel);
+    if (p) {
+      const box = el("div", "gonebox");
+      box.append(el("div", "", p.name));
+      box.append(el("div", "by", `準備 ${p.prepLabel}${wd(p.prepSort)}　施工 ${p.workLabel}${wd(p.workSort)}　${p.contractor || "業者未定"}`));
+      if (p.e?.by) box.append(el("div", "by", `削除：${p.e.by}（${hhmm(p.e.atISO)}）`));
       if (canWrite()) {
-        const b = el("button", "lnk", "戻す"); b.type = "button";
+        const b = el("button", "back", "この物件を戻す"); b.type = "button";
         // 管理表から来た邸は手直しごと消して元の姿に。画面で追加した邸は削除の印だけ外す
-        b.onclick = () => save({ ["props." + p.id]: p.added ? { ...p.e, deleted: false, ...stamp() } : deleteField() });
-        g.append(" ", b);
+        b.onclick = async () => { if (await save({ ["props." + p.id]: p.added ? { ...p.e, deleted: false, ...stamp() } : deleteField() })) goneSel = ""; };
+        box.append(b);
       }
-    });
+      g.append(box);
+    }
     list.append(g);
   }
 }
+let goneSel = "";
 
 function itemRow(it, c) {
   const row = el("div", "row" + (c.done ? " done" : "") + (it.added ? " added" : ""));
