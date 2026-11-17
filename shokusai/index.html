@@ -185,6 +185,11 @@
   .seg button { height:26px; padding:0 10px; border:none; border-radius:6px; background:none; color:#fff; font-size:12px; font-weight:bold; }
   .seg button.on { background:#F2F0E8; color:var(--head); }
   #shownCount { font-size:11px; opacity:.9; margin-left:auto; padding-left:4px; white-space:nowrap; }
+  /* 絞り込みは 2列×2段 にそろえ、携帯の幅でも全部見えるようにする（広い画面では1段） */
+  .bar.filters { display:grid; grid-template-columns:1fr 1fr; gap:5px; overflow:visible; }
+  @media (min-width:700px) { .bar.filters { grid-template-columns:repeat(4, minmax(0, 220px)); } }
+  .bar.filters select, .bar.filters .chk { width:100%; min-width:0; }
+  .bar.filters .chk { justify-content:center; }
   .bar.filters select { background:rgba(255,255,255,.12); color:#fff; border:1px solid rgba(255,255,255,.45); padding:0 6px; }
   .bar.filters select option { color:#363735; background:#fff; }
   .bar.filters .chk { font-size:12px; height:30px; padding:0 8px; border-radius:8px; border:1px solid rgba(255,255,255,.45); display:flex; align-items:center; gap:4px; white-space:nowrap; }
