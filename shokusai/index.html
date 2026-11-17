@@ -19,10 +19,15 @@
   .bar button { font-size:13px; padding:6px 10px; border-radius:8px; border:none; background:#fff; color:var(--head); font-weight:bold; }
   .bar button:disabled { opacity:.5; }
   .bar select { font-size:13px; padding:5px 6px; border-radius:8px; border:none; background:#fff; color:var(--head); }
-  .ph h2 .ppen { border:none; background:none; color:var(--sub); font-size:14px; padding:0 4px; }
+  /* 編集ボタン：枠と色を付けて押せることが分かるように */
+  .ph h2 .ppen { border:1px solid var(--edit); background:var(--card); color:var(--edit); font-size:12px; font-weight:bold; padding:3px 8px; border-radius:14px; margin-left:6px; vertical-align:1px; }
   .gone.props { padding:4px 2px; }
   .card .ph .addtag { font-size:10px; color:var(--edit); border:1px solid var(--edit); border-radius:4px; padding:0 3px; margin-left:5px; font-weight:normal; vertical-align:2px; }
-  .form input[type=date] { width:100%; }
+  /* iPhone の日付欄は中身の幅より縮まないので、見た目を外して幅いっぱいに収める */
+  .form input[type=date] { -webkit-appearance:none; appearance:none; display:block; width:100%; min-width:0; max-width:100%; text-align:left; min-height:36px; }
+  .form input[type=date]::-webkit-date-and-time-value { text-align:left; }
+  .form .grid.two { grid-template-columns:1fr 1fr; }
+  .form .grid.two label.wide { grid-column:1 / -1; }
   .bar label { font-size:12px; display:flex; align-items:center; gap:4px; }
   #who { font-size:11px; opacity:.9; margin-left:auto; }
   main { padding:6px 10px 40px; max-width:760px; margin:0 auto; }
@@ -50,7 +55,7 @@
   .row.done .name { color:var(--done); text-decoration:line-through; }
   .row .by { font-size:10.5px; color:var(--sub); margin-top:1px; }
   .row .by.ed { color:var(--edit); }
-  .row .pen { flex:none; border:none; background:none; color:var(--sub); font-size:15px; padding:4px 6px; border-radius:6px; }
+  .row .pen { flex:none; border:1px solid var(--edit); background:var(--card); color:var(--edit); font-size:16px; width:34px; height:30px; padding:0; border-radius:8px; line-height:1; }
   .row.added .name::after { content:"追加"; font-size:10px; color:var(--edit); border:1px solid var(--edit); border-radius:4px; padding:0 3px; margin-left:5px; vertical-align:2px; }
   .empty { padding:8px 10px; border-top:1px solid var(--line); color:var(--warn); font-size:13px; }
   .foot { display:flex; justify-content:space-between; align-items:center; gap:8px; padding:4px 10px; border-top:1px solid var(--line); font-size:12px; }
@@ -62,7 +67,8 @@
   .form input { font-size:16px; padding:6px 8px; border-radius:8px; border:1px solid var(--line); background:var(--card); color:var(--ink); min-width:0; }
   .form .f-name { width:100%; }
   .form .grid { display:grid; grid-template-columns:1fr 1fr 1fr; gap:6px; margin-top:6px; }
-  .form .grid label { font-size:11px; color:var(--sub); display:flex; flex-direction:column; gap:2px; }
+  .form .grid input { width:100%; }
+  .form .grid label { min-width:0; font-size:11px; color:var(--sub); display:flex; flex-direction:column; gap:2px; }
   .form .btns { display:flex; gap:8px; margin-top:8px; }
   .form .btns button { font-size:14px; padding:7px 14px; border-radius:8px; border:1px solid var(--line); background:var(--card); color:var(--ink); }
   .form .btns .save { background:var(--accent); border-color:var(--accent); color:#fff; font-weight:bold; }
@@ -216,8 +222,9 @@ function propForm(p) {
   const work = input("", e.work || (p?.workSort && p.workSort !== "9999-99-99" ? p.workSort : ""), ""); work.type = "date";
   const prep = input("", e.prep || (p?.prepSort && p.prepSort !== "9999-99-99" ? p.prepSort : ""), ""); prep.type = "date";
   const con = input("", p?.contractor || "", "業者");
-  const grid = el("div", "grid");
-  grid.append(lab("施工日", work), lab("準備希望日", prep), lab("業者", con));
+  const grid = el("div", "grid two");
+  const conLab = lab("業者", con); conLab.className = "wide";
+  grid.append(lab("施工日", work), lab("準備希望日", prep), conLab);
   f.append(name, grid);
   const btns = el("div", "btns");
   const ok = el("button", "save", p ? "保存" : "追加"); ok.type = "button";
@@ -330,7 +337,7 @@ function render() {
     else if (p.e) title.append(el("span", "addtag", "修正"));
     const cnt = el("span", "cnt"); cnt.innerHTML = `選定済 <b>${doneN}/${shown.length}</b>`;
     if (canWrite()) {
-      const pp = el("button", "ppen", "✎"); pp.type = "button"; pp.title = "物件を直す・削除";
+      const pp = el("button", "ppen", "✎ 編集"); pp.type = "button"; pp.title = "物件を直す・削除";
       pp.onclick = () => { editingProp = p.id; editing = null; render(); };
       cnt.append(pp);
     }
