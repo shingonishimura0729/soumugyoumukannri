@@ -163,6 +163,17 @@
   .form .btns .save { background:var(--accent); border-color:var(--accent); color:#fff; font-weight:bold; }
   .form .btns .del { margin-left:auto; color:var(--warn); border-color:var(--warn); }
   #login { display:none; }
+  /* 株立ちの選択（絵つき） */
+  .kabu { margin-top:6px; }
+  .kabu-h { font-size:11px; color:var(--sub); margin-bottom:3px; }
+  .kabu-row { display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:5px; }
+  .kabu-opt { display:flex; flex-direction:column; align-items:center; gap:1px; padding:4px 2px 5px; border:1.5px solid var(--line); border-radius:10px; background:var(--card); color:var(--ink); cursor:pointer; }
+  .kabu-opt svg { width:100%; max-width:72px; height:auto; }
+  .kabu-opt b { font-size:11.5px; white-space:nowrap; }
+  .kabu-opt small { font-size:9.5px; color:var(--sub); white-space:nowrap; }
+  .kabu-opt.on { border-color:var(--accent); background:var(--soft); box-shadow:0 0 0 2px var(--accent) inset; }
+  .kabu-tag { display:inline-flex; align-items:center; gap:3px; }
+  .kabu-tag svg { width:22px; height:20px; }
 
   /* ---- 上の固定部分（余白を詰め、ボタンの役割を色で分ける） ---- */
   header { padding:6px 10px 6px; box-shadow:0 1px 4px rgba(0,0,0,.18); }
@@ -473,13 +484,13 @@ function itemsOf(p, edits) {
     const base = { ...it, ...splitQty(it) };
     const e = edits[it.id];
     if (e?.deleted) { gone.push({ ...base, id: it.id, e, orig: base }); continue; }
-    shown.push(e ? { ...base, name: e.name, height: e.height, qty: e.qty, unit: e.unit, id: it.id, orig: base, e } : { ...base, id: it.id, orig: base });
+    shown.push(e ? { ...base, name: e.name, height: e.height, qty: e.qty, unit: e.unit, form: e.form ?? base.form, id: it.id, orig: base, e } : { ...base, id: it.id, orig: base });
   }
   // 画面で追加した木は、追加した順に並べる（保存先の並びは順不同のため）
   const adds = Object.entries(edits).filter(([, e]) => e?.prop === p.id)
     .sort(([, a], [, b]) => String(a.created || a.atISO).localeCompare(String(b.created || b.atISO)));
   for (const [id, e] of adds) {
-    const a = { id, name: e.name, height: e.height, qty: e.qty, unit: e.unit, form: "", added: true, e };
+    const a = { id, name: e.name, height: e.height, qty: e.qty, unit: e.unit, form: e.form || "", added: true, e };
     (e.deleted ? gone : shown).push(a);
   }
   return { shown, gone };
@@ -487,7 +498,7 @@ function itemsOf(p, edits) {
 
 // ---- 編集（物件ごとに1つのボタンで、物件の情報とその邸の木をまとめて直す）----
 const hIn = (h) => (h && h !== "指定なし" ? String(h).replace(/^H/, "") : "");
-const newItem = () => ({ id: null, added: true, name: "", height: "", qty: "", unit: "本", deleted: false });
+const newItem = () => ({ id: null, added: true, name: "", height: "", qty: "", unit: "本", form: "", deleted: false });
 function startEdit(p, shown, gone) {
   draft = {
     id: p ? p.id : "new", p,
@@ -496,13 +507,14 @@ function startEdit(p, shown, gone) {
     items: p
       ? [...shown, ...gone.map((g) => ({ ...g, gone: true }))].map((it) => ({
           id: it.id, added: !!it.added, e: it.e, base: it.added ? null : it.orig,
-          name: it.name, height: hIn(it.height), qty: it.qty || "", unit: it.unit || "", deleted: !!it.gone }))
+          name: it.name, height: hIn(it.height), qty: it.qty || "", unit: it.unit || "", form: kabuKey(it.form) ? kabuLabel(it.form) : (it.form || ""), deleted: !!it.gone }))
       : [newItem()],
   };
   render();
   if (p) focusProp(p.id);
 }
-const same = (a, b) => ["name", "height", "qty", "unit"].every((k) => String(a[k] ?? "") === String(b[k] ?? ""));
+const same = (a, b) => ["name", "height", "qty", "unit"].every((k) => String(a[k] ?? "") === String(b[k] ?? ""))
+  && kabuNorm(a.form) === kabuNorm(b.form);
 const rnd = () => Math.random().toString(36).slice(2, 12);
 
 /** 下書きと今の中身を比べて、変わったところだけを1回で書き込む */
@@ -531,7 +543,7 @@ async function saveDraft(btn) {
   }
   for (const it of d.items) {
     const v = { name: it.name.normalize("NFKC").trim().slice(0, 60), height: normHeight(it.height).slice(0, 20),
-      qty: it.qty.normalize("NFKC").trim().slice(0, 10), unit: it.unit.normalize("NFKC").trim().slice(0, 10) };
+      qty: it.qty.normalize("NFKC").trim().slice(0, 10), unit: it.unit.normalize("NFKC").trim().slice(0, 10), form: String(it.form || "").slice(0, 20) };
     if (it.added && !it.id) { if (v.name && !it.deleted) patch["edits.a" + rnd()] = { prop: pid, ...v, ...st, created: new Date(Date.now() + d.items.indexOf(it)).toISOString() }; continue; }
     if (it.added) {
       if (!v.name) v.name = it.e.name;
@@ -539,7 +551,7 @@ async function saveDraft(btn) {
       patch["edits." + it.id] = { ...it.e, ...v, deleted: it.deleted, ...st };
       continue;
     }
-    const b = { name: it.base.name, height: it.base.height || "指定なし", qty: it.base.qty || "", unit: it.base.unit || "" };
+    const b = { name: it.base.name, height: it.base.height || "指定なし", qty: it.base.qty || "", unit: it.base.unit || "", form: it.base.form || "" };
     if (!v.name) v.name = b.name;
     // 依頼シートどおりに戻したなら、手直しごと消す
     if (same(v, b) && !it.deleted) { if (it.e) patch["edits." + it.id] = deleteField(); continue; }
@@ -688,13 +700,13 @@ function editForm() {
       const q = bind(input("", it.qty, "2"), it, "qty"); q.inputMode = "decimal";
       const u = bind(input("", it.unit, "本"), it, "unit"); u.setAttribute("list", "units");
       g.append(lab("高さ（m）", h), lab("数量", q), lab("単位", u));
-      r.append(g);
+      r.append(g, kabuPicker(it));
     }
     if (it.base) {
       const b = it.base;
-      const cur = { name: it.name, height: normHeight(it.height), qty: it.qty, unit: it.unit };
-      if (it.deleted || !same(cur, { name: b.name, height: b.height || "指定なし", qty: b.qty || "", unit: b.unit || "" }))
-        r.append(el("div", "orig", `依頼シートでは：${b.name} ${fmtHeight(b.height)} ${qtyText(b)}`));
+      const cur = { name: it.name, height: normHeight(it.height), qty: it.qty, unit: it.unit, form: it.form };
+      if (it.deleted || !same(cur, { name: b.name, height: b.height || "指定なし", qty: b.qty || "", unit: b.unit || "", form: b.form || "" }))
+        r.append(el("div", "orig", `依頼シートでは：${b.name} ${fmtHeight(b.height)} ${qtyText(b)}${b.form ? " " + b.form : ""}`));
     }
     f.append(r);
   });
@@ -893,10 +905,8 @@ function itemRow(it, c) {
   spec.innerHTML = `${esc(fmtHeight(it.height))}　${it.qty ? esc(it.qty + (it.unit || "")) : '<span class="warn">数量未確認</span>'}`;
   line.append(spec);
   body.append(line);
-  if (it.form) body.append(el("div", "by", it.form));
+  if (it.form) { const f = el("div", "by kabu-tag"); if (kabuKey(it.form)) f.innerHTML = kabuSvg(KABU.find((k) => k.key === kabuKey(it.form)).trunks); f.append(kabuLabel(it.form) || it.form); body.append(f); }
   if (c.by && c.done) body.append(el("div", "by", `選定：${c.by}（${hhmm(c.atISO)}）`));
-  if (it.e && !it.added) body.append(el("div", "by ed", `修正：${it.e.by}（${hhmm(it.e.atISO)}）　元 ${it.orig.name} ${fmtHeight(it.orig.height)} ${qtyText(it.orig)}`));
-  else if (it.added) body.append(el("div", "by ed", `追加：${it.e.by}（${hhmm(it.e.atISO)}）`));
   row.append(box, body);
   return row;
 }
@@ -950,6 +960,61 @@ function buildTable(rows) {
   }
   t.append(tb); wrap.append(t);
   return wrap;
+}
+
+/**
+ * 株立ちの選択肢。植栽依頼ｼｰﾄ（Excel）の「形」の欄の入力規則と同じ4つ：
+ *   単木／株２～3本立／株４～5本立／株6本～7本
+ * Excel の書き方はゆれる（全角・「株6本～7本」など）ので、本数で見分ける。
+ */
+const KABU = [
+  { key: "1", label: "単木", trunks: 1, note: "幹が1本" },
+  { key: "2-3", label: "株2~3本立", trunks: 3, note: "根元から2〜3本" },
+  { key: "4-5", label: "株4~5本立", trunks: 5, note: "根元から4〜5本" },
+  { key: "6-7", label: "株6~7本立", trunks: 7, note: "根元から6〜7本" },
+];
+function kabuKey(v) {
+  const s = String(v || "").normalize("NFKC");
+  if (/単木|単幹/.test(s)) return "1";
+  const m = /(\d+)\D{0,3}[~〜～-]\D{0,3}(\d+)/.exec(s);
+  if (m) { const a = Number(m[1]); return a <= 3 ? "2-3" : a <= 5 ? "4-5" : "6-7"; }
+  return "";
+}
+const kabuLabel = (v) => KABU.find((k) => k.key === kabuKey(v))?.label || "";
+const kabuNorm = (v) => kabuKey(v) || String(v || "").normalize("NFKC").trim();
+/** 株立ちの絵（幹の本数が分かる見本の絵） */
+function kabuSvg(trunks) {
+  const W = 80, H = 72, baseX = 40, baseY = 64;
+  let trunk = "", crown = "";
+  for (let i = 0; i < trunks; i++) {
+    const t = trunks === 1 ? 0 : i / (trunks - 1) - 0.5; // -0.5 〜 0.5
+    const topX = baseX + t * 44, topY = 22 + Math.abs(t) * 14;
+    const midX = baseX + t * 14;
+    trunk += `<path d="M${baseX + t * 4} ${baseY} Q${midX} ${(baseY + topY) / 2 + 6} ${topX} ${topY}" fill="none" stroke="#6b5a45" stroke-width="${trunks === 1 ? 3.2 : 2}" stroke-linecap="round"/>`;
+    crown += `<ellipse cx="${topX}" cy="${topY - 4}" rx="${trunks === 1 ? 16 : 11}" ry="${trunks === 1 ? 14 : 9}" fill="#8aa05a" opacity=".55"/>`;
+  }
+  return `<svg viewBox="0 0 ${W} ${H}" aria-hidden="true"><line x1="10" y1="${baseY}" x2="70" y2="${baseY}" stroke="#b9ad92" stroke-width="2"/>${crown}${trunk}</svg>`;
+}
+/** 編集で株立ちを選ぶ（絵を押して選ぶ。もう一度押すと外す） */
+function kabuPicker(it) {
+  const box = el("div", "kabu");
+  box.append(el("div", "kabu-h", "株立ち（形）"));
+  const row = el("div", "kabu-row");
+  const cur = kabuKey(it.form);
+  for (const k of KABU) {
+    const b = el("button", "kabu-opt" + (cur === k.key ? " on" : "")); b.type = "button";
+    b.innerHTML = kabuSvg(k.trunks);
+    b.append(el("b", "", k.label), el("small", "", k.note));
+    b.onclick = () => {
+      it.form = kabuKey(it.form) === k.key ? "" : k.label;
+      for (const x of row.children) x.classList.remove("on");
+      if (it.form) b.classList.add("on");
+    };
+    row.append(b);
+  }
+  box.append(row);
+  if (it.form && !cur) box.append(el("div", "orig", "いまの形：" + it.form));
+  return box;
 }
 
 /** 業者名は敬意を込めて必ず「様」を付けて表示する（データはそのまま。未定のときは付けない） */
