@@ -374,8 +374,9 @@ async function saveDraft(btn) {
   const d = draft, P = d.prop, st = stamp(), patch = {};
   if (d.uploading) { alert("図面のPDFを保存しています。終わってから押してください。"); return; }
   const pv = { name: P.name.normalize("NFKC").trim().slice(0, 60), work: P.work, prep: P.prep || dayBefore(P.work), contractor: P.contractor.trim().slice(0, 30),
-    address: P.address.normalize("NFKC").trim().slice(0, 120), drawUrl: P.drawUrl.trim().slice(0, 500), drawFile: P.drawFile || null };
+    address: P.address.normalize("NFKC").trim().slice(0, 500), drawUrl: P.drawUrl.trim().slice(0, 500), drawFile: P.drawFile || null };
   if (!pv.name) { alert("物件名を入れてください。"); return; }
+  if (/^http:\/\//i.test(pv.address)) { alert("住所のリンクは https:// で始まるものを貼ってください。"); return; }
   if (pv.drawUrl && !/^https:\/\//i.test(pv.drawUrl)) { alert("図面のリンクは https:// で始まるものを貼ってください。"); return; }
   const pid = d.id === "new" ? "p" + rnd() : d.id;
   const eq = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
@@ -524,9 +525,10 @@ function editForm() {
   const prepLab = lab("準備希望日", prep); prepLab.append(hint);
   grid.append(lab("施工日", work), prepLab, conLab);
   // 住所と外構図面（リンクを貼る、または PDF を置く）
-  const addr = bind(input("", d.prop.address, "例：岐阜県可児市〇〇町1-2"), d.prop, "address");
+  // 住所は、基本は Google マップの共有リンクを貼る（住所の文字を打ってもよい）
+  const addr = bind(input("", d.prop.address, "Googleマップの共有リンクを貼る（住所の文字でも可）"), d.prop, "address");
   const url = bind(input("", d.prop.drawUrl, "Googleドライブなどのリンクを貼る"), d.prop, "drawUrl"); url.type = "url";
-  const addrLab = lab("住所", addr); addrLab.className = "wide";
+  const addrLab = lab("住所（Googleマップのリンク）", addr); addrLab.className = "wide";
   const urlLab = lab("外構図面のリンク", url); urlLab.className = "wide";
   grid.append(addrLab, urlLab);
   f.append(name, grid, dropZone(d));
@@ -651,9 +653,14 @@ function render() {
     if (p.address || p.drawUrl || p.drawFile) {
       const info = el("div", "pinfo");
       if (p.address) {
-        const a = el("a", "addr", "📍 " + p.address);
-        a.href = "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent(p.address); a.target = "_blank"; a.rel = "noopener";
-        info.append(a);
+        // リンクならそのまま開く。文字の住所なら Google マップで探す
+        const isLink = /^https:\/\//i.test(p.address);
+        if (isLink || !/^[a-z]+:/i.test(p.address)) {
+          const a = el("a", "addr", isLink ? "📍 地図（Googleマップ）" : "📍 " + p.address);
+          a.href = isLink ? p.address : "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent(p.address);
+          a.target = "_blank"; a.rel = "noopener noreferrer";
+          info.append(a);
+        }
       }
       if (/^https:\/\//i.test(p.drawUrl || "")) {
         const a = el("a", "draw", "📄 外構図面（リンク）"); a.href = p.drawUrl; a.target = "_blank"; a.rel = "noopener noreferrer";
