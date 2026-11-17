@@ -33,6 +33,12 @@
   .pinfo { display:flex; gap:10px; flex-wrap:wrap; margin-top:4px; font-size:12.5px; }
   .pinfo a, .pinfo button { color:var(--edit); text-decoration:none; border:none; background:none; padding:0; font-size:12.5px; }
   .pinfo .draw { font-weight:bold; }
+  .pinfo a, .pinfo button { padding:2px 6px; margin:0 -6px; border-radius:6px; cursor:pointer; }
+  .pinfo a:hover, .pinfo button:hover { background:var(--soft); text-decoration:underline; }
+  /* カーソルを合わせたときの説明（カードの枠で切れないよう、画面の上に重ねる） */
+  #tip { position:fixed; z-index:50; max-width:min(360px, calc(100vw - 24px)); padding:7px 10px; border-radius:8px; background:#2b2f29; color:#fff; font-size:12px; line-height:1.5; pointer-events:none; box-shadow:0 4px 14px rgba(0,0,0,.25); word-break:break-all; display:none; }
+  #tip b { display:block; font-size:12.5px; }
+  #tip span { opacity:.8; }
   .form .drop { margin-top:8px; border:2px dashed var(--edit); border-radius:10px; padding:12px; text-align:center; color:var(--edit); cursor:pointer; background:var(--card); }
   .form .drop.over { background:var(--soft); }
   .form .drop .dmsg { font-size:13.5px; font-weight:bold; word-break:break-all; }
@@ -588,6 +594,7 @@ function editForm() {
 function render() {
   if (!board) return;
   pending = false;
+  const tp = document.getElementById("tip"); if (tp) tp.style.display = "none"; // 描き直しで元の札が消えると、説明が残るため
   const st = board.status || {};
   const building = st.state === "building";
   $("meta").textContent = (board.builtAtISO ? `${hhmm(board.builtAtISO)} 時点` : "まだ作られていません") + (st.message ? `　${st.message}` : "");
@@ -659,16 +666,19 @@ function render() {
           const a = el("a", "addr", isLink ? "📍 地図（Googleマップ）" : "📍 " + p.address);
           a.href = isLink ? p.address : "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent(p.address);
           a.target = "_blank"; a.rel = "noopener noreferrer";
+          tip(a, isLink ? "Googleマップで開く" : "Googleマップで探す", isLink ? p.address : p.address);
           info.append(a);
         }
       }
       if (/^https:\/\//i.test(p.drawUrl || "")) {
         const a = el("a", "draw", "📄 外構図面（リンク）"); a.href = p.drawUrl; a.target = "_blank"; a.rel = "noopener noreferrer";
+        tip(a, "外構図面を開く（リンク）", p.drawUrl);
         info.append(a);
       }
       if (p.drawFile) {
         const b = el("button", "draw", "📄 外構図面（PDF）"); b.type = "button";
         b.onclick = () => openFile(p.drawFile, b);
+        tip(b, "外構図面を開く（PDF）", `${p.drawFile.name}（${(p.drawFile.size / 1048576).toFixed(1)}MB）`);
         info.append(b);
       }
       ph.append(info);
@@ -737,6 +747,21 @@ function itemRow(it, c) {
   row.append(box, body);
   return row;
 }
+/** カーソルを合わせたときに、何が開くか（リンク先・ファイル名）を出す */
+function tip(target, head, detail) {
+  let t = document.getElementById("tip");
+  if (!t) { t = el("div"); t.id = "tip"; document.body.append(t); }
+  target.setAttribute("aria-label", `${head}：${detail}`);
+  target.addEventListener("mouseenter", () => {
+    t.innerHTML = ""; t.append(el("b", "", head), el("span", "", detail));
+    t.style.display = "block";
+    const r = target.getBoundingClientRect(), w = t.offsetWidth, h = t.offsetHeight;
+    t.style.left = Math.max(12, Math.min(r.left, innerWidth - w - 12)) + "px";
+    t.style.top = (r.bottom + 6 + h > innerHeight ? r.top - h - 6 : r.bottom + 6) + "px";
+  });
+  target.addEventListener("mouseleave", () => { t.style.display = "none"; });
+}
+addEventListener("scroll", () => { const t = document.getElementById("tip"); if (t) t.style.display = "none"; }, { passive: true });
 function input(cls, value, ph) { const i = document.createElement("input"); if (cls) i.className = cls; i.value = value; i.placeholder = ph; return i; }
 function lab(text, inp) { const l = el("label", "", text); l.append(inp); return l; }
 function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
