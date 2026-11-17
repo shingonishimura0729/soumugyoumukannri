@@ -623,7 +623,7 @@ function render() {
   let conSel = $("contractor").value;
   try { conSel = conSel || localStorage.getItem("shokusai_contractor") || ""; } catch {}
   $("contractor").innerHTML = "";
-  $("contractor").append(new Option("業者：すべて", ""), ...cons.map((c) => new Option(c, c)));
+  $("contractor").append(new Option("業者：すべて", ""), ...cons.map((c) => new Option(honor(c), c)));
   $("contractor").value = cons.includes(conSel) ? conSel : "";
   const by = $("sort").value;
   const cmp = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
@@ -655,7 +655,7 @@ function render() {
     h2.append(title, cnt); ph.append(h2);
     // 準備は2日前から注意の色、施工は前日から
     const when = el("div", "when");
-    when.append(dateChip("準備", p.prepLabel, p.prepSort, 2), dateChip("施工", p.workLabel, p.workSort, 1), el("span", "con", p.contractor || "業者未定"));
+    when.append(dateChip("準備", p.prepLabel, p.prepSort, 2), dateChip("施工", p.workLabel, p.workSort, 1), el("span", "con", honor(p.contractor)));
     ph.append(when);
     if (p.address || p.drawUrl || p.drawFile) {
       const info = el("div", "pinfo");
@@ -714,7 +714,7 @@ function render() {
     if (p) {
       const box = el("div", "gonebox");
       box.append(el("div", "", p.name));
-      box.append(el("div", "by", `準備 ${p.prepLabel}${wd(p.prepSort)}　施工 ${p.workLabel}${wd(p.workSort)}　${p.contractor || "業者未定"}`));
+      box.append(el("div", "by", `準備 ${p.prepLabel}${wd(p.prepSort)}　施工 ${p.workLabel}${wd(p.workSort)}　${honor(p.contractor)}`));
       if (p.e?.by) box.append(el("div", "by", `削除：${p.e.by}（${hhmm(p.e.atISO)}）`));
       if (canWrite()) {
         const b = el("button", "back", "この物件を戻す"); b.type = "button";
@@ -746,6 +746,12 @@ function itemRow(it, c) {
   else if (it.added) body.append(el("div", "by ed", `追加：${it.e.by}（${hhmm(it.e.atISO)}）`));
   row.append(box, body);
   return row;
+}
+/** 業者名は敬意を込めて必ず「様」を付けて表示する（データはそのまま。未定のときは付けない） */
+function honor(c) {
+  const s = String(c || "").trim();
+  if (!s || s === "業者未定") return "業者未定";
+  return /様$/.test(s) ? s : s + " 様";
 }
 /** カーソルを合わせたときに、何が開くか（リンク先・ファイル名）を出す */
 function tip(target, head, detail) {
