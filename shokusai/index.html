@@ -30,6 +30,14 @@
   .form .grid.two label.wide { grid-column:1 / -1; }
   .bar label { font-size:12px; display:flex; align-items:center; gap:4px; }
   #shownCount { font-size:11px; opacity:.9; }
+  .pinfo { display:flex; gap:10px; flex-wrap:wrap; margin-top:4px; font-size:12.5px; }
+  .pinfo a, .pinfo button { color:var(--edit); text-decoration:none; border:none; background:none; padding:0; font-size:12.5px; }
+  .pinfo .draw { font-weight:bold; }
+  .form .drop { margin-top:8px; border:2px dashed var(--edit); border-radius:10px; padding:12px; text-align:center; color:var(--edit); cursor:pointer; background:var(--card); }
+  .form .drop.over { background:var(--soft); }
+  .form .drop .dmsg { font-size:13.5px; font-weight:bold; word-break:break-all; }
+  .form .drop .dsub { font-size:11px; color:var(--sub); margin-top:2px; }
+  .form .drop .lnk { color:var(--warn); font-size:12px; margin-left:4px; }
   .gonesel { font-size:13px; padding:6px 8px; border-radius:8px; border:1px solid var(--line); background:var(--card); color:var(--sub); max-width:100%; }
   .gonebox { margin-top:6px; padding:8px 10px; border:1px dashed var(--line); border-radius:8px; background:var(--card); color:var(--ink); font-size:14px; }
   .gonebox .back { margin-top:6px; font-size:13px; padding:6px 12px; border-radius:8px; border:1px solid var(--edit); background:var(--card); color:var(--edit); }
@@ -143,7 +151,7 @@
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
 import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-auth.js";
-import { getFirestore, doc, onSnapshot, updateDoc, deleteField } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
+import { getFirestore, doc, onSnapshot, updateDoc, deleteField, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
 import { firebaseConfig } from "../assets/js/firebase-config.js";
 
 /*
@@ -285,7 +293,7 @@ function propsOf() {
     const q = { ...p, prepSort: p.prepSort || sortKeyOf(p.prepLabel, p.workSort !== "9999-99-99" ? p.workSort : "") };
     q.orig = { ...q };
     if (e && !e.deleted) {
-      Object.assign(q, { name: e.name || p.name, contractor: e.contractor ?? p.contractor, e });
+      Object.assign(q, { name: e.name || p.name, contractor: e.contractor ?? p.contractor, address: e.address || "", drawUrl: e.drawUrl || "", drawFile: e.drawFile || null, e });
       if (e.work) Object.assign(q, { workLabel: mdLabel(e.work), workSort: e.work });
       if (e.prep) Object.assign(q, { prepLabel: mdLabel(e.prep), prepSort: e.prep });
     }
@@ -293,7 +301,7 @@ function propsOf() {
   }
   for (const [id, e] of Object.entries(props)) {
     if (!e?.added) continue;
-    const q = { id, name: e.name, contractor: e.contractor || "", items: [], source: "画面", folderFound: true, added: true, e,
+    const q = { id, name: e.name, contractor: e.contractor || "", address: e.address || "", drawUrl: e.drawUrl || "", drawFile: e.drawFile || null, items: [], source: "画面", folderFound: true, added: true, e,
       workLabel: mdLabel(e.work), workSort: e.work || "9999-99-99", prepLabel: mdLabel(e.prep), prepSort: e.prep || e.work || "9999-99-99" };
     (e.deleted ? gone : shown).push(q);
   }
@@ -348,7 +356,8 @@ const newItem = () => ({ id: null, added: true, name: "", height: "", qty: "", u
 function startEdit(p, shown, gone) {
   draft = {
     id: p ? p.id : "new", p,
-    prop: { name: p?.name || "", work: dateOf(p?.workSort), prep: dateOf(p?.prepSort), contractor: p?.contractor || "" },
+    prop: { name: p?.name || "", work: dateOf(p?.workSort), prep: dateOf(p?.prepSort), contractor: p?.contractor || "",
+      address: p?.address || "", drawUrl: p?.drawUrl || "", drawFile: p?.drawFile || null },
     items: p
       ? [...shown, ...gone.map((g) => ({ ...g, gone: true }))].map((it) => ({
           id: it.id, added: !!it.added, e: it.e, base: it.added ? null : it.orig,
@@ -363,19 +372,24 @@ const rnd = () => Math.random().toString(36).slice(2, 12);
 /** 下書きと今の中身を比べて、変わったところだけを1回で書き込む */
 async function saveDraft(btn) {
   const d = draft, P = d.prop, st = stamp(), patch = {};
-  const pv = { name: P.name.normalize("NFKC").trim().slice(0, 60), work: P.work, prep: P.prep || dayBefore(P.work), contractor: P.contractor.trim().slice(0, 30) };
+  if (d.uploading) { alert("図面のPDFを保存しています。終わってから押してください。"); return; }
+  const pv = { name: P.name.normalize("NFKC").trim().slice(0, 60), work: P.work, prep: P.prep || dayBefore(P.work), contractor: P.contractor.trim().slice(0, 30),
+    address: P.address.normalize("NFKC").trim().slice(0, 120), drawUrl: P.drawUrl.trim().slice(0, 500), drawFile: P.drawFile || null };
   if (!pv.name) { alert("物件名を入れてください。"); return; }
+  if (pv.drawUrl && !/^https:\/\//i.test(pv.drawUrl)) { alert("図面のリンクは https:// で始まるものを貼ってください。"); return; }
   const pid = d.id === "new" ? "p" + rnd() : d.id;
+  const eq = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
   if (d.id === "new") patch["props." + pid] = { added: true, ...pv, deleted: false, ...st };
   else {
-    const cur = { name: d.p.name, work: dateOf(d.p.workSort), prep: dateOf(d.p.prepSort), contractor: d.p.contractor || "" };
-    const changed = Object.keys(pv).some((k) => pv[k] !== cur[k]);
+    const cur = { name: d.p.name, work: dateOf(d.p.workSort), prep: dateOf(d.p.prepSort), contractor: d.p.contractor || "",
+      address: d.p.address || "", drawUrl: d.p.drawUrl || "", drawFile: d.p.drawFile || null };
+    const changed = Object.keys(pv).some((k) => !eq(pv[k], cur[k]));
     if (changed && d.p.added) patch["props." + pid] = { ...d.p.e, ...pv, deleted: false, ...st };
     else if (changed) {
       const o = d.p.orig;
-      const orig = { name: o.name, work: dateOf(o.workSort), prep: dateOf(o.prepSort), contractor: o.contractor || "" };
+      const orig = { name: o.name, work: dateOf(o.workSort), prep: dateOf(o.prepSort), contractor: o.contractor || "", address: "", drawUrl: "", drawFile: null };
       // 管理表どおりに戻したなら、手直しごと消す
-      patch["props." + pid] = Object.keys(pv).every((k) => pv[k] === orig[k]) ? deleteField() : { ...pv, deleted: false, ...st };
+      patch["props." + pid] = Object.keys(pv).every((k) => eq(pv[k], orig[k])) ? deleteField() : { ...pv, deleted: false, ...st };
     }
   }
   for (const it of d.items) {
@@ -398,6 +412,75 @@ async function saveDraft(btn) {
   if (!Object.keys(patch).length) { draft = null; render(); return; }
   btn.disabled = true;
   if (await save(patch)) { draft = null; render(); } else btn.disabled = false;
+}
+
+// ---- 外構図面の PDF ----
+// 別の保管サービスを使わず、Firestore の shokusaiFiles に 700KB ずつ分けて置く（1文書の上限が1MBのため）。
+// 文書のIDは推測できない長さの乱数。見る人はボードと同じく「IDを知っている人」だけ
+const CHUNK = 700 * 1024, MAX_FILE = 15 * 1024 * 1024;
+function toB64(bytes) { let s = ""; for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000)); return btoa(s); }
+async function uploadPdf(file, onProgress) {
+  const buf = new Uint8Array(await file.arrayBuffer());
+  const id = [...crypto.getRandomValues(new Uint8Array(14))].map((x) => x.toString(16).padStart(2, "0")).join("");
+  const of = Math.ceil(buf.length / CHUNK) || 1;
+  for (let n = 0; n < of; n++) {
+    await setDoc(doc(db, "shokusaiFiles", `${id}_${n}`), { b64: toB64(buf.subarray(n * CHUNK, (n + 1) * CHUNK)), n, of, ...stamp() });
+    onProgress?.(n + 1, of);
+  }
+  return { id, of, name: file.name.slice(0, 80), size: buf.length };
+}
+async function openFile(f, btn) {
+  // 先に窓を開けておく（読み込みの後に開くと、携帯ではポップアップとして止められるため）
+  const w = window.open("", "_blank");
+  const label = btn.textContent; btn.textContent = "📄 読み込み中…"; btn.disabled = true;
+  try {
+    const parts = [];
+    for (let n = 0; n < f.of; n++) {
+      const s = await getDoc(doc(db, "shokusaiFiles", `${f.id}_${n}`));
+      if (!s.exists()) throw new Error("図面の一部が見つかりません");
+      const bin = atob(s.data().b64); const u = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
+      parts.push(u);
+    }
+    const url = URL.createObjectURL(new Blob(parts, { type: "application/pdf" }));
+    if (w) w.location.href = url; else location.href = url;
+  } catch (e) { w?.close(); alert("図面を開けませんでした：" + (e.message || e)); }
+  finally { btn.textContent = label; btn.disabled = false; }
+}
+/** PDF を置く枠（ドラッグ＆ドロップ、または押して選ぶ） */
+function dropZone(d) {
+  const z = el("div", "drop");
+  const pick = document.createElement("input"); pick.type = "file"; pick.accept = "application/pdf,.pdf"; pick.hidden = true;
+  const show = (msg) => {
+    z.innerHTML = ""; z.append(pick);
+    if (msg) { z.append(el("div", "dmsg", msg)); return; }
+    if (d.prop.drawFile) {
+      z.append(el("div", "dmsg", `📄 ${d.prop.drawFile.name}（${(d.prop.drawFile.size / 1048576).toFixed(1)}MB）`));
+      const x = el("button", "lnk", "外す"); x.type = "button";
+      x.onclick = (e) => { e.stopPropagation(); d.prop.drawFile = null; show(); };
+      z.append(x);
+      z.append(el("div", "dsub", "差し替えるときは、別のPDFをここに置くか押して選ぶ"));
+    } else {
+      z.append(el("div", "dmsg", "外構図面のPDFをここにドラッグ＆ドロップ"));
+      z.append(el("div", "dsub", "または押してファイルを選ぶ（15MBまで）"));
+    }
+  };
+  const take = async (file) => {
+    if (!file) return;
+    if (!/pdf$/i.test(file.type) && !/\.pdf$/i.test(file.name)) { alert("PDFのファイルを選んでください。"); return; }
+    if (file.size > MAX_FILE) { alert("15MBまでのPDFにしてください。"); return; }
+    d.uploading = true; show("保存しています…");
+    try { d.prop.drawFile = await uploadPdf(file, (i, n) => show(`保存しています…（${i}/${n}）`)); show(); }
+    catch (e) { alert("図面を保存できませんでした：" + (e.code || e.message || e)); show(); }
+    finally { d.uploading = false; }
+  };
+  z.onclick = () => { if (!d.uploading) pick.click(); };
+  pick.onchange = () => take(pick.files[0]);
+  z.ondragover = (e) => { e.preventDefault(); z.classList.add("over"); };
+  z.ondragleave = () => z.classList.remove("over");
+  z.ondrop = (e) => { e.preventDefault(); z.classList.remove("over"); if (!d.uploading) take(e.dataTransfer.files[0]); };
+  show();
+  return z;
 }
 
 /** 編集中の邸の入力欄（物件の情報＋木の一覧） */
@@ -440,7 +523,13 @@ function editForm() {
   const conLab = lab("業者", con); conLab.className = "wide";
   const prepLab = lab("準備希望日", prep); prepLab.append(hint);
   grid.append(lab("施工日", work), prepLab, conLab);
-  f.append(name, grid);
+  // 住所と外構図面（リンクを貼る、または PDF を置く）
+  const addr = bind(input("", d.prop.address, "例：岐阜県可児市〇〇町1-2"), d.prop, "address");
+  const url = bind(input("", d.prop.drawUrl, "Googleドライブなどのリンクを貼る"), d.prop, "drawUrl"); url.type = "url";
+  const addrLab = lab("住所", addr); addrLab.className = "wide";
+  const urlLab = lab("外構図面のリンク", url); urlLab.className = "wide";
+  grid.append(addrLab, urlLab);
+  f.append(name, grid, dropZone(d));
 
   f.append(el("div", "sec", "植栽"));
   d.items.forEach((it) => {
@@ -559,6 +648,24 @@ function render() {
     const when = el("div", "when");
     when.append(dateChip("準備", p.prepLabel, p.prepSort, 2), dateChip("施工", p.workLabel, p.workSort, 1), el("span", "con", p.contractor || "業者未定"));
     ph.append(when);
+    if (p.address || p.drawUrl || p.drawFile) {
+      const info = el("div", "pinfo");
+      if (p.address) {
+        const a = el("a", "addr", "📍 " + p.address);
+        a.href = "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent(p.address); a.target = "_blank"; a.rel = "noopener";
+        info.append(a);
+      }
+      if (/^https:\/\//i.test(p.drawUrl || "")) {
+        const a = el("a", "draw", "📄 外構図面（リンク）"); a.href = p.drawUrl; a.target = "_blank"; a.rel = "noopener noreferrer";
+        info.append(a);
+      }
+      if (p.drawFile) {
+        const b = el("button", "draw", "📄 外構図面（PDF）"); b.type = "button";
+        b.onclick = () => openFile(p.drawFile, b);
+        info.append(b);
+      }
+      ph.append(info);
+    }
     const tags = el("div", "tags");
     if (p.watanabe) tags.append(el("span", "tag ok", "渡邉樹苗園 手配" + p.watanabe));
     if (p.source === "管理表") tags.append(el("span", "tag warn", "依頼シートなし：管理表の文から"));

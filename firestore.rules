@@ -103,6 +103,25 @@ service cloud.firestore {
       allow list, delete: if false;
     }
 
+    /**
+     * 植栽チェックの外構図面（PDF）。1文書の上限が1MBなので、700KBずつに分けて置く。
+     * 文書のIDは「推測できない乱数_番号」。見るのはボードと同じく、IDを知っている人だけ。
+     * 置けるのは会社の Google アカウントでログインしたスタッフだけ。書き換え・削除・一覧は不可。
+     */
+    match /shokusaiFiles/{fileId} {
+      allow get: if true;
+      allow create: if request.auth != null
+        && request.auth.token.firebase.sign_in_provider == 'google.com'
+        && request.auth.token.email_verified == true
+        && request.auth.token.email.matches('.*@archigarden[.]net$')
+        && fileId.size() >= 24 && fileId.size() <= 48
+        && request.resource.data.keys().hasOnly(['b64', 'n', 'of', 'by', 'atISO'])
+        && request.resource.data.b64 is string && request.resource.data.b64.size() <= 1000000
+        && request.resource.data.n is int && request.resource.data.of is int
+        && request.resource.data.of <= 25;
+      allow update, list, delete: if false;
+    }
+
     // ここに書いていないものは全部拒否
     match /{document=**} {
       allow read, write: if false;
