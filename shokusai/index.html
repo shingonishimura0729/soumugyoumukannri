@@ -4,11 +4,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex, nofollow">
-<meta name="theme-color" content="#4a6650">
+<meta name="theme-color" content="#556529">
 <title>植栽 選定チェック</title>
 <style>
-  :root { --bg:#f5f6f2; --card:#fff; --ink:#222; --sub:#6b6f66; --line:#e3e6de; --head:#4a6650; --soft:#e7efe3; --accent:#556529; --warn:#b5651d; --warnbg:#fbefe4; --done:#8a9a7e; --edit:#2f6f8f; }
-  @media (prefers-color-scheme: dark) { :root { --bg:#151714; --card:#1f221d; --ink:#eceee9; --sub:#9aa093; --line:#33382f; --head:#2f4434; --soft:#26301f; --accent:#9fb35a; --warn:#e3a066; --warnbg:#3a2a1c; --done:#7c8a71; --edit:#7fb8d6; } }
+  /* アーキガーデンのコンセプトカラー：ガーデングリーン #556529・ロゴグリーン #747F4D・墨 #363735・生成り #F2F0E8・砂色 #CAC0A7 */
+  :root { --bg:#F2F0E8; --card:#fff; --ink:#363735; --sub:#76766c; --line:#e1dccd; --head:#556529; --soft:#eceadd; --accent:#556529; --logo:#747F4D; --sand:#CAC0A7; --warn:#b5651d; --warnbg:#fbefe4; --done:#9a9a88; --edit:#556529; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#151714; --card:#1f221d; --ink:#eceee9; --sub:#9aa093; --line:#33382f; --head:#3d4a1d; --soft:#26301f; --accent:#9fb35a; --logo:#9aa56c; --sand:#8c8470; --warn:#e3a066; --warnbg:#3a2a1c; --done:#7c8a71; --edit:#b5c47a; } }
   * { box-sizing:border-box; }
   body { margin:0; background:var(--bg); color:var(--ink); font-family:system-ui,"Hiragino Sans","Yu Gothic UI",sans-serif; -webkit-text-size-adjust:100%; }
   header { background:var(--head); color:#fff; padding:10px 12px 8px; position:sticky; top:0; z-index:5; }
@@ -162,26 +163,58 @@
   .form .btns .save { background:var(--accent); border-color:var(--accent); color:#fff; font-weight:bold; }
   .form .btns .del { margin-left:auto; color:var(--warn); border-color:var(--warn); }
   #login { display:none; }
+
+  /* ---- 上の固定部分（余白を詰め、ボタンの役割を色で分ける） ---- */
+  header { padding:6px 10px 6px; box-shadow:0 1px 4px rgba(0,0,0,.18); }
+  .top { gap:8px; }
+  .ttl { min-width:0; flex:1; line-height:1.2; }
+  header h1 { font-size:15px; letter-spacing:.02em; }
+  #meta { display:block; font-size:10.5px; opacity:.8; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  #who { font-size:10.5px; opacity:.85; white-space:nowrap; margin:0; text-align:right; }
+  #who a { color:#fff; }
+  #howto { margin-left:0; padding:3px 9px 3px 3px; font-size:11px; }
+  #howto .play { width:24px; height:24px; font-size:11px; }
+  .bar { margin-top:5px; gap:5px; flex-wrap:nowrap; overflow-x:auto; scrollbar-width:none; -webkit-overflow-scrolling:touch; }
+  .bar::-webkit-scrollbar { display:none; }
+  .bar > * { flex:none; }
+  .bar button, .bar select { height:30px; font-size:12.5px; border-radius:8px; }
+  /* 更新＝白、追加・ログイン＝砂色、表示の切り替え＝生成りの切り替え、絞り込み＝枠だけ */
+  .bar .b-refresh { background:#fff; color:var(--head); border:none; padding:0 10px; font-weight:bold; }
+  .bar .b-add { background:var(--sand); color:#363735; border:none; padding:0 10px; font-weight:bold; }
+  .seg { display:flex; background:rgba(255,255,255,.18); border-radius:8px; padding:2px; }
+  .seg button { height:26px; padding:0 10px; border:none; border-radius:6px; background:none; color:#fff; font-size:12px; font-weight:bold; }
+  .seg button.on { background:#F2F0E8; color:var(--head); }
+  #shownCount { font-size:11px; opacity:.9; margin-left:auto; padding-left:4px; white-space:nowrap; }
+  .bar.filters select { background:rgba(255,255,255,.12); color:#fff; border:1px solid rgba(255,255,255,.45); padding:0 6px; }
+  .bar.filters select option { color:#363735; background:#fff; }
+  .bar.filters .chk { font-size:12px; height:30px; padding:0 8px; border-radius:8px; border:1px solid rgba(255,255,255,.45); display:flex; align-items:center; gap:4px; white-space:nowrap; }
+  .bar.filters .chk input { margin:0; accent-color:var(--sand); }
+  /* 本文：コンセプトカラーに合わせる */
+  .card { border-color:var(--line); }
+  .ph { background:var(--soft); }
+  .ph h2 .ppen { border-color:var(--logo); color:var(--logo); }
+  .bnote { margin:6px 0 4px; padding:6px 10px; font-size:12px; }
+  .tbl th { background:var(--head); }
 </style>
 </head>
 <body>
 <header>
-  <div class="top"><h1>植栽手配　選定チェック</h1><span id="meta">読み込み中…</span>
-    <button id="howto" type="button" aria-label="使い方動画を見る"><span class="play">▶</span><span>使い方<br>動画</span></button></div>
-  <div class="bar">
-    <button id="refresh" type="button" disabled>更新</button>
-    <button id="login" type="button">ログインしてチェック</button>
-    <button id="addProp" type="button" style="display:none">＋物件</button>
-    <select id="sort" aria-label="並び順">
-      <option value="prep">準備日順</option>
-      <option value="work">施工日順</option>
-      <option value="todo">未選定が多い順</option>
-      <option value="name">名前順</option>
-    </select>
-    <label><input type="checkbox" id="hideDone"> 選び終えた邸を隠す</label>
+  <div class="top">
+    <div class="ttl"><h1>植栽手配　選定チェック</h1><span id="meta">読み込み中…</span></div>
     <span id="who"></span>
+    <button id="howto" type="button" aria-label="使い方動画を見る"><span class="play">▶</span><span>使い方<br>動画</span></button>
   </div>
-  <div class="bar">
+  <div class="bar tools">
+    <button id="refresh" class="b-refresh" type="button" disabled>↻ 更新</button>
+    <button id="login" class="b-add" type="button">ログインしてチェック</button>
+    <button id="addProp" class="b-add" type="button" style="display:none">＋ 物件</button>
+    <div class="seg" role="group" aria-label="表示の形">
+      <button type="button" data-view="card">カード</button><button type="button" data-view="table">一覧表</button>
+    </div>
+    <select id="view" hidden aria-hidden="true"><option value="card">カード</option><option value="table">一覧表</option></select>
+    <span id="shownCount"></span>
+  </div>
+  <div class="bar filters">
     <select id="range" aria-label="期間で絞り込み">
       <option value="all">期間：すべて</option>
       <option value="prep0">準備：今日まで（遅れ含む）</option>
@@ -193,11 +226,13 @@
       <option value="workNext">施工：来月</option>
     </select>
     <select id="contractor" aria-label="業者で絞り込み"><option value="">業者：すべて</option></select>
-    <select id="view" aria-label="表示の形">
-      <option value="card">表示：カード</option>
-      <option value="table">表示：一覧表</option>
+    <select id="sort" aria-label="並び順">
+      <option value="prep">準備日順</option>
+      <option value="work">施工日順</option>
+      <option value="todo">未選定が多い順</option>
+      <option value="name">名前順</option>
     </select>
-    <span id="shownCount"></span>
+    <label class="chk"><input type="checkbox" id="hideDone"> 選び終えた邸を隠す</label>
   </div>
 </header>
 <main>
@@ -306,6 +341,10 @@ $("videoClose").onclick = closeVideo;
 $("videoBox").onclick = (e) => { if (e.target === $("videoBox")) closeVideo(); };
 
 try { const v = localStorage.getItem("shokusai_view"); if (v) $("view").value = v; } catch {}
+// 見える切り替えボタンは、隠した select（#view）を動かす
+for (const b of document.querySelectorAll(".seg button")) {
+  b.onclick = () => { $("view").value = b.dataset.view; $("view").dispatchEvent(new Event("change")); };
+}
 for (const id of ["range", "contractor", "view"]) {
   $(id).onchange = () => { try { localStorage.setItem("shokusai_" + id, $(id).value); } catch {} render(); };
 }
@@ -686,6 +725,7 @@ function render() {
     : '<span class="err">このアカウントではチェックを付けられません。会社のアカウント（@archigarden.net）でログインし直してください。</span>';
 
   $("addProp").style.display = canWrite() ? "" : "none";
+  for (const b of document.querySelectorAll(".seg button")) b.classList.toggle("on", b.dataset.view === $("view").value);
   const checks = board.checks || {}, edits = board.edits || {};
   const list = $("list"); list.innerHTML = "";
   if (draft?.id === "new") {
