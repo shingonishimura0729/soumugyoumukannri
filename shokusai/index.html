@@ -12,7 +12,13 @@
   * { box-sizing:border-box; }
   body { margin:0; background:var(--bg); color:var(--ink); font-family:system-ui,"Hiragino Sans","Yu Gothic UI",sans-serif; -webkit-text-size-adjust:100%; }
   header { background:var(--head); color:#fff; padding:10px 12px 8px; position:sticky; top:0; z-index:5; }
-  .top { display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; }
+  .top { display:flex; align-items:center; gap:8px; }
+  .top h1 { white-space:nowrap; }
+  #meta { flex:1; min-width:0; }
+  /* 使い方動画：見出しの一番右に、丸い再生マーク付きで目立たせる */
+  #howto { flex:none; margin-left:auto; display:flex; align-items:center; gap:6px; padding:4px 10px 4px 4px; border-radius:999px; border:none; background:#fff; color:var(--head); font-weight:bold; font-size:12px; line-height:1.15; text-align:left; box-shadow:0 1px 4px rgba(0,0,0,.25); cursor:pointer; }
+  #howto .play { width:26px; height:26px; border-radius:50%; background:#d9433a; color:#fff; display:flex; align-items:center; justify-content:center; font-size:12px; padding-left:2px; }
+  #howto:hover { background:#fff6e5; }
   header h1 { margin:0; font-size:16px; }
   #meta { font-size:11px; opacity:.85; }
   .bar { display:flex; gap:6px; align-items:center; flex-wrap:wrap; margin-top:6px; }
@@ -30,6 +36,7 @@
   .form .grid.two label.wide { grid-column:1 / -1; }
   .bar label { font-size:12px; display:flex; align-items:center; gap:4px; }
   #shownCount { font-size:11px; opacity:.9; }
+  .note:empty { display:none; }
   /* 一覧表（携帯では横に動かす。物件名の列は左に固定） */
   .tblwrap { overflow-x:auto; -webkit-overflow-scrolling:touch; border:1px solid var(--line); border-radius:10px; background:var(--card); margin:8px 0; }
   main:has(.tblwrap) { max-width:1400px; }
@@ -159,12 +166,12 @@
 </head>
 <body>
 <header>
-  <div class="top"><h1>植栽手配　選定チェック</h1><span id="meta">読み込み中…</span></div>
+  <div class="top"><h1>植栽手配　選定チェック</h1><span id="meta">読み込み中…</span>
+    <button id="howto" type="button" aria-label="使い方動画を見る"><span class="play">▶</span><span>使い方<br>動画</span></button></div>
   <div class="bar">
     <button id="refresh" type="button" disabled>更新</button>
     <button id="login" type="button">ログインしてチェック</button>
     <button id="addProp" type="button" style="display:none">＋物件</button>
-    <button id="howto" type="button">▶ 使い方動画</button>
     <select id="sort" aria-label="並び順">
       <option value="prep">準備日順</option>
       <option value="work">施工日順</option>
@@ -675,7 +682,7 @@ function render() {
   $("refresh").textContent = building ? "更新中…" : "更新";
   $("guide").innerHTML = st.state === "error" ? `<span class="err">更新に失敗しました：${esc(st.message)}</span>`
     : !user ? "見るだけならこのままで大丈夫です。チェックや手直しをする人は「ログインしてチェック」から会社の Google アカウントでログインしてください。"
-    : canWrite() ? "選んだ木の□を押す。物件名・日付・木の追加や修正・削除は、邸ごとの「✎ 編集」から。新しい物件は上の「＋物件」。手直しは「更新」しても消えません。"
+    : canWrite() ? ""
     : '<span class="err">このアカウントではチェックを付けられません。会社のアカウント（@archigarden.net）でログインし直してください。</span>';
 
   $("addProp").style.display = canWrite() ? "" : "none";
