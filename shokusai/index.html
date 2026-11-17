@@ -186,8 +186,10 @@
   .seg button.on { background:#F2F0E8; color:var(--head); }
   #shownCount { font-size:11px; opacity:.9; margin-left:auto; padding-left:4px; white-space:nowrap; }
   /* 絞り込みは 2列×2段 にそろえ、携帯の幅でも全部見えるようにする（広い画面では1段） */
-  .bar.filters { display:grid; grid-template-columns:1fr 1fr; gap:5px; overflow:visible; }
-  @media (min-width:700px) { .bar.filters { grid-template-columns:repeat(4, minmax(0, 220px)); } }
+  /* 絞り込みの4つは1行に並べる */
+  .bar.filters { display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:4px; overflow:visible; }
+  @media (min-width:700px) { .bar.filters { grid-template-columns:repeat(4, minmax(0, 160px)); } }
+  .bar.filters select, .bar.filters .chk { font-size:12px; padding:0 4px; }
   .bar.filters select, .bar.filters .chk { width:100%; min-width:0; }
   .bar.filters .chk { justify-content:center; }
   .bar.filters select { background:rgba(255,255,255,.12); color:#fff; border:1px solid rgba(255,255,255,.45); padding:0 6px; }
@@ -221,23 +223,23 @@
   </div>
   <div class="bar filters">
     <select id="range" aria-label="期間で絞り込み">
-      <option value="all">期間：すべて</option>
-      <option value="prep0">準備：今日まで（遅れ含む）</option>
-      <option value="prep1">準備：明日まで</option>
-      <option value="prep3">準備：3日以内</option>
-      <option value="prep7">準備：1週間以内</option>
-      <option value="work7">施工：1週間以内</option>
-      <option value="workThis">施工：今月</option>
-      <option value="workNext">施工：来月</option>
+      <option value="all">期間</option>
+      <option value="prep0">準備〜今日</option>
+      <option value="prep1">準備〜明日</option>
+      <option value="prep3">準備3日内</option>
+      <option value="prep7">準備1週内</option>
+      <option value="work7">施工1週内</option>
+      <option value="workThis">施工今月</option>
+      <option value="workNext">施工来月</option>
     </select>
-    <select id="contractor" aria-label="業者で絞り込み"><option value="">業者：すべて</option></select>
+    <select id="contractor" aria-label="業者で絞り込み"><option value="">業者</option></select>
     <select id="sort" aria-label="並び順">
-      <option value="prep">準備日順</option>
-      <option value="work">施工日順</option>
-      <option value="todo">未選定が多い順</option>
+      <option value="prep">準備順</option>
+      <option value="work">施工順</option>
+      <option value="todo">未選定順</option>
       <option value="name">名前順</option>
     </select>
-    <label class="chk"><input type="checkbox" id="hideDone"> 選び終えた邸を隠す</label>
+    <label class="chk" title="選び終えた邸を隠す"><input type="checkbox" id="hideDone"> 済を隠す</label>
   </div>
 </header>
 <main>
@@ -748,7 +750,7 @@ function render() {
   let conSel = $("contractor").value;
   try { conSel = conSel || localStorage.getItem("shokusai_contractor") || ""; } catch {}
   $("contractor").innerHTML = "";
-  $("contractor").append(new Option("業者：すべて", ""), ...cons.map((c) => new Option(honor(c), c)));
+  $("contractor").append(new Option("業者", ""), ...cons.map((c) => new Option(honor(c), c)));
   $("contractor").value = cons.includes(conSel) ? conSel : "";
   const by = $("sort").value;
   const cmp = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
