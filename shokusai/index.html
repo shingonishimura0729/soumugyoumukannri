@@ -297,9 +297,11 @@ function propsOf() {
   for (const p of board.properties || []) {
     const e = props[p.id];
     const q = { ...p, prepSort: p.prepSort || sortKeyOf(p.prepLabel, p.workSort !== "9999-99-99" ? p.workSort : "") };
+    // 住所は、管理表の「地図」欄から PC が作った Google マップのリンク（mapUrl）を初めから入れておく
+    q.address = p.mapUrl || "";
     q.orig = { ...q };
     if (e && !e.deleted) {
-      Object.assign(q, { name: e.name || p.name, contractor: e.contractor ?? p.contractor, address: e.address || "", drawUrl: e.drawUrl || "", drawFile: e.drawFile || null, e });
+      Object.assign(q, { name: e.name || p.name, contractor: e.contractor ?? p.contractor, address: e.address ?? q.address, drawUrl: e.drawUrl || "", drawFile: e.drawFile || null, e });
       if (e.work) Object.assign(q, { workLabel: mdLabel(e.work), workSort: e.work });
       if (e.prep) Object.assign(q, { prepLabel: mdLabel(e.prep), prepSort: e.prep });
     }
@@ -394,7 +396,7 @@ async function saveDraft(btn) {
     if (changed && d.p.added) patch["props." + pid] = { ...d.p.e, ...pv, deleted: false, ...st };
     else if (changed) {
       const o = d.p.orig;
-      const orig = { name: o.name, work: dateOf(o.workSort), prep: dateOf(o.prepSort), contractor: o.contractor || "", address: "", drawUrl: "", drawFile: null };
+      const orig = { name: o.name, work: dateOf(o.workSort), prep: dateOf(o.prepSort), contractor: o.contractor || "", address: o.address || "", drawUrl: "", drawFile: null };
       // 管理表どおりに戻したなら、手直しごと消す
       patch["props." + pid] = Object.keys(pv).every((k) => eq(pv[k], orig[k])) ? deleteField() : { ...pv, deleted: false, ...st };
     }
