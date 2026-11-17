@@ -7,51 +7,82 @@
 <meta name="theme-color" content="#4a6650">
 <title>植栽 選定チェック</title>
 <style>
-  :root { --bg:#f5f6f2; --card:#fff; --ink:#222; --sub:#6b6f66; --line:#dfe3da; --head:#4a6650; --soft:#e7efe3; --accent:#556529; --warn:#b5651d; --warnbg:#fbefe4; --done:#8a9a7e; }
-  @media (prefers-color-scheme: dark) { :root { --bg:#151714; --card:#1f221d; --ink:#eceee9; --sub:#9aa093; --line:#33382f; --head:#2f4434; --soft:#26301f; --accent:#9fb35a; --warn:#e3a066; --warnbg:#3a2a1c; --done:#7c8a71; } }
+  :root { --bg:#f5f6f2; --card:#fff; --ink:#222; --sub:#6b6f66; --line:#e3e6de; --head:#4a6650; --soft:#e7efe3; --accent:#556529; --warn:#b5651d; --warnbg:#fbefe4; --done:#8a9a7e; --edit:#2f6f8f; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#151714; --card:#1f221d; --ink:#eceee9; --sub:#9aa093; --line:#33382f; --head:#2f4434; --soft:#26301f; --accent:#9fb35a; --warn:#e3a066; --warnbg:#3a2a1c; --done:#7c8a71; --edit:#7fb8d6; } }
   * { box-sizing:border-box; }
   body { margin:0; background:var(--bg); color:var(--ink); font-family:system-ui,"Hiragino Sans","Yu Gothic UI",sans-serif; -webkit-text-size-adjust:100%; }
-  header { background:var(--head); color:#fff; padding:14px 16px 12px; position:sticky; top:0; z-index:5; }
-  header h1 { margin:0; font-size:18px; }
-  #meta { font-size:12px; opacity:.85; margin-top:4px; }
-  .bar { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:10px; }
-  .bar button { font-size:14px; padding:8px 12px; border-radius:10px; border:none; background:#fff; color:var(--head); font-weight:bold; }
+  header { background:var(--head); color:#fff; padding:10px 12px 8px; position:sticky; top:0; z-index:5; }
+  .top { display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; }
+  header h1 { margin:0; font-size:16px; }
+  #meta { font-size:11px; opacity:.85; }
+  .bar { display:flex; gap:6px; align-items:center; flex-wrap:wrap; margin-top:6px; }
+  .bar button { font-size:13px; padding:6px 10px; border-radius:8px; border:none; background:#fff; color:var(--head); font-weight:bold; }
   .bar button:disabled { opacity:.5; }
-  .bar label { font-size:13px; display:flex; align-items:center; gap:4px; }
-  #who { font-size:12px; opacity:.9; margin-left:auto; }
-  main { padding:12px 16px 40px; max-width:760px; margin:0 auto; }
-  .note { font-size:13px; color:var(--sub); margin:6px 0 12px; line-height:1.6; }
+  .bar select { font-size:13px; padding:5px 6px; border-radius:8px; border:none; background:#fff; color:var(--head); }
+  .ph h2 .ppen { border:none; background:none; color:var(--sub); font-size:14px; padding:0 4px; }
+  .gone.props { padding:4px 2px; }
+  .card .ph .addtag { font-size:10px; color:var(--edit); border:1px solid var(--edit); border-radius:4px; padding:0 3px; margin-left:5px; font-weight:normal; vertical-align:2px; }
+  .form input[type=date] { width:100%; }
+  .bar label { font-size:12px; display:flex; align-items:center; gap:4px; }
+  #who { font-size:11px; opacity:.9; margin-left:auto; }
+  main { padding:6px 10px 40px; max-width:760px; margin:0 auto; }
+  .note { font-size:12px; color:var(--sub); margin:4px 2px 6px; line-height:1.5; }
   .err { color:var(--warn); }
-  .card { background:var(--card); border:1px solid var(--line); border-radius:14px; margin:12px 0; overflow:hidden; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; margin:8px 0; overflow:hidden; }
   .card.alldone { opacity:.6; }
-  .ph { background:var(--soft); padding:10px 14px; }
-  .ph h2 { margin:0; font-size:17px; }
-  .ph .sub { font-size:13px; color:var(--sub); margin-top:4px; }
+  .ph { background:var(--soft); padding:6px 10px; }
+  .ph h2 { margin:0; font-size:15px; display:flex; justify-content:space-between; gap:8px; }
+  .ph h2 .cnt { font-size:12px; font-weight:normal; color:var(--sub); white-space:nowrap; }
+  .ph h2 .cnt b { color:var(--ink); }
+  .ph .sub { font-size:12px; color:var(--sub); margin-top:1px; }
   .ph .sub b { color:var(--ink); }
-  .tags { margin-top:6px; display:flex; gap:6px; flex-wrap:wrap; }
-  .tag { font-size:11px; padding:2px 8px; border-radius:20px; background:var(--card); border:1px solid var(--line); color:var(--sub); }
+  .tags { margin-top:3px; display:flex; gap:4px; flex-wrap:wrap; }
+  .tag { font-size:10.5px; padding:1px 6px; border-radius:20px; background:var(--card); border:1px solid var(--line); color:var(--sub); }
   .tag.warn { background:var(--warnbg); border-color:var(--warn); color:var(--warn); }
   .tag.ok { border-color:var(--accent); color:var(--accent); }
-  .row { display:flex; gap:10px; align-items:flex-start; padding:10px 14px; border-top:1px solid var(--line); }
-  .row input[type=checkbox] { width:24px; height:24px; margin:2px 0 0; accent-color:var(--accent); flex:none; }
+  .row { display:flex; gap:8px; align-items:center; padding:5px 6px 5px 10px; border-top:1px solid var(--line); min-height:38px; }
+  .row input[type=checkbox] { width:22px; height:22px; margin:0; accent-color:var(--accent); flex:none; }
   .row .body { flex:1; min-width:0; }
-  .row .name { font-size:16px; }
-  .row.done .name { color:var(--done); text-decoration:line-through; }
-  .row .spec { font-size:13px; color:var(--sub); margin-top:2px; }
+  .row .line { display:flex; align-items:baseline; gap:8px; }
+  .row .name { font-size:15px; flex:1; min-width:0; word-break:break-all; }
+  .row .spec { font-size:13px; color:var(--sub); white-space:nowrap; font-variant-numeric:tabular-nums; }
   .row .spec .warn { color:var(--warn); font-weight:bold; }
-  .row .by { font-size:11px; color:var(--sub); margin-top:3px; }
-  .row .memo { width:100%; margin-top:6px; font-size:14px; padding:6px 8px; border-radius:8px; border:1px solid var(--line); background:var(--bg); color:var(--ink); }
-  .empty { padding:12px 14px; border-top:1px solid var(--line); color:var(--warn); font-size:14px; }
+  .row.done .name { color:var(--done); text-decoration:line-through; }
+  .row .by { font-size:10.5px; color:var(--sub); margin-top:1px; }
+  .row .by.ed { color:var(--edit); }
+  .row .pen { flex:none; border:none; background:none; color:var(--sub); font-size:15px; padding:4px 6px; border-radius:6px; }
+  .row.added .name::after { content:"追加"; font-size:10px; color:var(--edit); border:1px solid var(--edit); border-radius:4px; padding:0 3px; margin-left:5px; vertical-align:2px; }
+  .empty { padding:8px 10px; border-top:1px solid var(--line); color:var(--warn); font-size:13px; }
+  .foot { display:flex; justify-content:space-between; align-items:center; gap:8px; padding:4px 10px; border-top:1px solid var(--line); font-size:12px; }
+  .foot button, .lnk { border:none; background:none; color:var(--edit); font-size:13px; padding:4px 0; }
+  .gone { padding:2px 10px 6px; font-size:12px; color:var(--sub); }
+  .gone span { text-decoration:line-through; }
+  .form { padding:8px 10px; border-top:1px solid var(--line); background:var(--bg); }
+  .form .orig { font-size:11px; color:var(--sub); margin-bottom:4px; }
+  .form input { font-size:16px; padding:6px 8px; border-radius:8px; border:1px solid var(--line); background:var(--card); color:var(--ink); min-width:0; }
+  .form .f-name { width:100%; }
+  .form .grid { display:grid; grid-template-columns:1fr 1fr 1fr; gap:6px; margin-top:6px; }
+  .form .grid label { font-size:11px; color:var(--sub); display:flex; flex-direction:column; gap:2px; }
+  .form .btns { display:flex; gap:8px; margin-top:8px; }
+  .form .btns button { font-size:14px; padding:7px 14px; border-radius:8px; border:1px solid var(--line); background:var(--card); color:var(--ink); }
+  .form .btns .save { background:var(--accent); border-color:var(--accent); color:#fff; font-weight:bold; }
+  .form .btns .del { margin-left:auto; color:var(--warn); border-color:var(--warn); }
   #login { display:none; }
 </style>
 </head>
 <body>
 <header>
-  <h1>植栽手配　選定チェック</h1>
-  <div id="meta">読み込み中…</div>
+  <div class="top"><h1>植栽手配　選定チェック</h1><span id="meta">読み込み中…</span></div>
   <div class="bar">
     <button id="refresh" type="button" disabled>更新</button>
     <button id="login" type="button">ログインしてチェック</button>
+    <button id="addProp" type="button" style="display:none">＋物件</button>
+    <select id="sort" aria-label="並び順">
+      <option value="prep">準備日順</option>
+      <option value="work">施工日順</option>
+      <option value="todo">未選定が多い順</option>
+      <option value="name">名前順</option>
+    </select>
     <label><input type="checkbox" id="hideDone"> 選び終えた邸を隠す</label>
     <span id="who"></span>
   </div>
@@ -60,17 +91,24 @@
   <p class="note" id="guide"></p>
   <div id="list"></div>
 </main>
+<datalist id="units"><option value="本"><option value="株"><option value="ポット"><option value="鉢"><option value="㎡"><option value="m"><option value="式"></datalist>
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
 import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-auth.js";
-import { getFirestore, doc, onSnapshot, updateDoc } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
+import { getFirestore, doc, onSnapshot, updateDoc, deleteField } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
 import { firebaseConfig } from "../assets/js/firebase-config.js";
 
 /*
  * 植栽の選定チェック。
  * リストは会社のPCが「植栽依頼一括管理表」と各邸の「植栽依頼ｼｰﾄ」から作り、Firebase に置く。
- * この画面はそれを表示し、チェックとメモを書き込むだけ。
+ * この画面はそれを表示し、チェックと「品目の手直し」を書き込む。
+ *
+ * 手直し（edits）は PC が作るリストとは別の欄に置く。「更新」で作り直しても消えないようにするため。
+ *   edits.{品目ID} = { name, height, qty, unit, deleted, by, atISO }   … 元からある品目の修正・削除
+ *   edits.{a…}     = { prop, name, height, qty, unit, by, atISO }      … 画面で追加した品目（prop＝邸のID）
+ *   props.{邸のID}  = { name, work, prep, contractor, deleted, by, atISO } … 邸の修正・削除
+ *   props.{p…}      = { added:true, name, work, prep, contractor, by, atISO } … 画面で追加した邸（work/prep は YYYY-MM-DD）
  *
  * 見る：URL の ?b=（ボードのID）を知っている人なら誰でも（渡邉樹苗園さんもログインなしで見られる）
  * 書く：会社の Google アカウント（@archigarden.net）でログインした人だけ。守りは firestore.rules にある
@@ -81,20 +119,27 @@ const boardId = new URLSearchParams(location.search).get("b");
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
+const ref = () => doc(db, "shokusaiBoards", boardId);
 let board = null, user = null;
+/** 手直し中の品目（{ id, prop }）。入力中に他の人の変更で画面が描き直されて消えないよう、その間は描き直しを待たせる */
+let editing = null, pending = false;
+/** 手直し中の邸（邸のID、追加なら "new"） */
+let editingProp = null;
 
 const STAFF = /@archigarden\.net$/i;
 const canWrite = () => !!(user && user.email && STAFF.test(user.email));
 const shortName = (u) => (u.displayName || u.email || "").split(/[\s@]/)[0];
 const hhmm = (iso) => { if (!iso) return ""; const d = new Date(iso); return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`; };
+const stamp = () => ({ by: shortName(user), atISO: new Date().toISOString() });
 
 if (!boardId) {
   $("meta").textContent = "リンクが正しくありません。";
   $("guide").innerHTML = '<span class="err">渡されたリンクをそのまま開いてください（最後に「?b=…」が付いたもの）。</span>';
 } else {
-  onSnapshot(doc(db, "shokusaiBoards", boardId), (snap) => {
+  onSnapshot(ref(), (snap) => {
     if (!snap.exists()) { $("meta").textContent = "このリンクのリストは見つかりません。"; return; }
-    board = snap.data(); render();
+    board = snap.data();
+    if (editing || editingProp) pending = true; else render();
   }, (e) => { $("meta").textContent = "読み込めませんでした：" + e.code; });
 }
 
@@ -119,76 +164,320 @@ $("login").onclick = async () => {
 $("refresh").onclick = async () => {
   if (!canWrite()) return;
   $("refresh").disabled = true;
-  try { await updateDoc(doc(db, "shokusaiBoards", boardId), { updateRequest: { atISO: new Date().toISOString(), by: shortName(user) } }); }
+  try { await updateDoc(ref(), { updateRequest: { atISO: new Date().toISOString(), by: shortName(user) } }); }
   catch (e) { alert("更新を頼めませんでした：" + e.code); $("refresh").disabled = false; }
 };
 $("hideDone").onchange = () => { try { localStorage.setItem("shokusai_hideDone", $("hideDone").checked ? "1" : ""); } catch {} render(); };
 try { $("hideDone").checked = !!localStorage.getItem("shokusai_hideDone"); } catch {}
+$("sort").onchange = () => { try { localStorage.setItem("shokusai_sort", $("sort").value); } catch {} render(); };
+try { const v = localStorage.getItem("shokusai_sort"); if (v) $("sort").value = v; } catch {}
+$("addProp").onclick = () => { editingProp = "new"; editing = null; render(); window.scrollTo(0, 0); };
 
-async function setCheck(id, patch) {
-  const cur = board.checks?.[id] || {};
-  const next = { done: !!cur.done, memo: cur.memo || "", ...patch, by: shortName(user), atISO: new Date().toISOString() };
-  try { await updateDoc(doc(db, "shokusaiBoards", boardId), { ["checks." + id]: next }); }
-  catch (e) { alert("保存できませんでした：" + e.code); render(); }
+/** 「2026-11-20」→「11/20」 */
+const mdLabel = (s) => { const m = /^\d{4}-(\d{2})-(\d{2})$/.exec(s || ""); return m ? `${+m[1]}/${+m[2]}` : "未定"; };
+/** 「11/20」→ 並び替え用の「YYYY-MM-DD」（年は施工日から推す。無ければ今年か来年の近い方） */
+function sortKeyOf(label, hint) {
+  const m = /^(\d+)\/(\d+)$/.exec(label || "");
+  if (!m) return "9999-99-99";
+  let y = Number((hint || "").slice(0, 4)) || new Date().getFullYear();
+  if (!hint) { const now = new Date(); if (Number(m[1]) < now.getMonth() + 1 - 3) y++; }
+  return `${y}-${String(m[1]).padStart(2, "0")}-${String(m[2]).padStart(2, "0")}`;
+}
+
+/** PC が作った邸に手直しを重ね、画面で追加した邸を足す */
+function propsOf() {
+  const props = board.props || {};
+  const shown = [], gone = [];
+  for (const p of board.properties || []) {
+    const e = props[p.id];
+    const q = { ...p, prepSort: p.prepSort || sortKeyOf(p.prepLabel, p.workSort !== "9999-99-99" ? p.workSort : "") };
+    if (e && !e.deleted) {
+      Object.assign(q, { name: e.name || p.name, contractor: e.contractor ?? p.contractor, e, orig: p });
+      if (e.work) Object.assign(q, { workLabel: mdLabel(e.work), workSort: e.work });
+      if (e.prep) Object.assign(q, { prepLabel: mdLabel(e.prep), prepSort: e.prep });
+    }
+    (e?.deleted ? gone : shown).push(e?.deleted ? { ...q, e } : q);
+  }
+  for (const [id, e] of Object.entries(props)) {
+    if (!e?.added) continue;
+    const q = { id, name: e.name, contractor: e.contractor || "", items: [], source: "画面", folderFound: true, added: true, e,
+      workLabel: mdLabel(e.work), workSort: e.work || "9999-99-99", prepLabel: mdLabel(e.prep), prepSort: e.prep || e.work || "9999-99-99" };
+    (e.deleted ? gone : shown).push(q);
+  }
+  return { shown, gone };
+}
+
+/** 邸の追加・手直しの入力欄。p が null なら追加 */
+function propForm(p) {
+  const f = el("div", "form");
+  const e = p?.e || {};
+  if (p && !p.added) f.append(el("div", "orig", `管理表では：${p.orig?.name || p.name}　施工 ${p.orig?.workLabel || p.workLabel}　準備 ${p.orig?.prepLabel || p.prepLabel}`));
+  const name = input("f-name", p?.name || "", "物件名（例：〇〇様邸）");
+  const work = input("", e.work || (p?.workSort && p.workSort !== "9999-99-99" ? p.workSort : ""), ""); work.type = "date";
+  const prep = input("", e.prep || (p?.prepSort && p.prepSort !== "9999-99-99" ? p.prepSort : ""), ""); prep.type = "date";
+  const con = input("", p?.contractor || "", "業者");
+  const grid = el("div", "grid");
+  grid.append(lab("施工日", work), lab("準備希望日", prep), lab("業者", con));
+  f.append(name, grid);
+  const btns = el("div", "btns");
+  const ok = el("button", "save", p ? "保存" : "追加"); ok.type = "button";
+  const cancel = el("button", "", "やめる"); cancel.type = "button";
+  btns.append(ok, cancel);
+  const close = () => { editingProp = null; render(); };
+  cancel.onclick = close;
+  ok.onclick = async () => {
+    const v = { name: name.value.normalize("NFKC").trim().slice(0, 60), work: work.value, prep: prep.value || "", contractor: con.value.trim().slice(0, 30) };
+    if (!v.name) { alert("物件名を入れてください。"); name.focus(); return; }
+    ok.disabled = true;
+    const id = p ? p.id : "p" + Math.random().toString(36).slice(2, 12);
+    const r = await save({ ["props." + id]: { ...(p?.added ? e : {}), ...(p ? {} : { added: true }), ...v, deleted: false, ...stamp() } });
+    if (r) close(); else ok.disabled = false;
+  };
+  if (p) {
+    if (!p.added && p.e) {
+      const back = el("button", "", "元に戻す"); back.type = "button";
+      back.onclick = async () => { if (await save({ ["props." + p.id]: deleteField() })) close(); };
+      btns.append(back);
+    }
+    const del = el("button", "del", "物件を削除"); del.type = "button";
+    del.onclick = async () => {
+      if (!confirm(`「${p.name}」をリストから削除しますか？（下の「削除した物件」から戻せます）`)) return;
+      if (await save({ ["props." + p.id]: { ...e, name: p.name, deleted: true, ...stamp() } })) close();
+    };
+    btns.append(del);
+  }
+  f.append(btns);
+  if (!p) setTimeout(() => name.focus(), 0);
+  return f;
+}
+
+async function save(patch) {
+  try { await updateDoc(ref(), patch); return true; }
+  catch (e) { alert("保存できませんでした：" + e.code); render(); return false; }
+}
+const setCheck = (id, done) => save({ ["checks." + id]: { done, ...stamp() } });
+
+/** 数量と単位。以前のリストは「2本」のように1つの欄に入っているので分けて読む */
+function splitQty(it) {
+  if (it.unit != null) return { qty: String(it.qty ?? ""), unit: String(it.unit ?? "") };
+  const m = /^(\d+(?:\.\d+)?)\s*(.*)$/.exec(String(it.qty || ""));
+  return m ? { qty: m[1], unit: m[2] } : { qty: "", unit: "" };
+}
+/** 高さの入力をそろえる（「2.5」→「H2.5」、空→「指定なし」） */
+function normHeight(v) {
+  const s = String(v || "").normalize("NFKC").trim();
+  if (!s) return "指定なし";
+  if (/^\d+(\.\d+)?$/.test(s)) return "H" + Number(s).toFixed(1);
+  if (/^h\s*\d/i.test(s)) return "H" + Number(s.replace(/^h\s*/i, "")).toFixed(1);
+  return s;
+}
+const fmtHeight = (h) => h || "指定なし";
+
+/** 邸ごとに、PC が作った品目に手直しを重ね、画面で追加した品目を足す */
+function itemsOf(p, edits) {
+  const shown = [], gone = [];
+  for (const it of p.items || []) {
+    const base = { ...it, ...splitQty(it) };
+    const e = edits[it.id];
+    if (e?.deleted) { gone.push({ ...base, id: it.id, e }); continue; }
+    shown.push(e ? { ...base, name: e.name, height: e.height, qty: e.qty, unit: e.unit, id: it.id, orig: base, e } : { ...base, id: it.id });
+  }
+  for (const [id, e] of Object.entries(edits)) {
+    if (e?.prop === p.id && !e.deleted) shown.push({ id, name: e.name, height: e.height, qty: e.qty, unit: e.unit, form: "", added: true, e });
+  }
+  return { shown, gone };
 }
 
 function render() {
   if (!board) return;
+  pending = false;
   const st = board.status || {};
   const building = st.state === "building";
   $("meta").textContent = (board.builtAtISO ? `${hhmm(board.builtAtISO)} 時点` : "まだ作られていません") + (st.message ? `　${st.message}` : "");
   $("refresh").disabled = !canWrite() || building;
   $("refresh").textContent = building ? "更新中…" : "更新";
   $("guide").innerHTML = st.state === "error" ? `<span class="err">更新に失敗しました：${esc(st.message)}</span>`
-    : !user ? "見るだけならこのままで大丈夫です。チェックを付ける人は「ログインしてチェック」から会社の Google アカウントでログインしてください。"
-    : canWrite() ? "選んだ木の□を押してください。全員の画面にすぐ反映されます。「更新」で管理表と依頼シートから作り直します（チェックは消えません）。"
+    : !user ? "見るだけならこのままで大丈夫です。チェックや手直しをする人は「ログインしてチェック」から会社の Google アカウントでログインしてください。"
+    : canWrite() ? "選んだ木の□を押す。木の✎で樹種・高さ・数量・単位の修正や削除、邸の下の「＋品目を追加」で追加。物件は邸名の横の✎で修正・削除、上の「＋物件」で追加。手直しは「更新」しても消えません。"
     : '<span class="err">このアカウントではチェックを付けられません。会社のアカウント（@archigarden.net）でログインし直してください。</span>';
 
-  const checks = board.checks || {};
+  $("addProp").style.display = canWrite() ? "" : "none";
+  const checks = board.checks || {}, edits = board.edits || {};
   const list = $("list"); list.innerHTML = "";
-  for (const p of board.properties || []) {
-    const doneN = p.items.filter((i) => checks[i.id]?.done).length;
-    const all = p.items.length > 0 && doneN === p.items.length;
-    if (all && $("hideDone").checked) continue;
+  if (editingProp === "new") { const c = el("div", "card"); c.append(propForm(null)); list.append(c); }
+  const { shown: propsShown, gone: propsGone } = propsOf();
+  const rows = propsShown.map((p) => {
+    const r = itemsOf(p, edits);
+    return { p, ...r, doneN: r.shown.filter((i) => checks[i.id]?.done).length };
+  });
+  const by = $("sort").value;
+  const cmp = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
+  rows.sort((a, b) =>
+    by === "work" ? cmp(a.p.workSort, b.p.workSort) || cmp(a.p.prepSort, b.p.prepSort)
+    : by === "name" ? a.p.name.localeCompare(b.p.name, "ja")
+    : by === "todo" ? (b.shown.length - b.doneN) - (a.shown.length - a.doneN) || cmp(a.p.prepSort, b.p.prepSort)
+    : cmp(a.p.prepSort, b.p.prepSort) || cmp(a.p.workSort, b.p.workSort));
+  for (const { p, shown, gone, doneN } of rows) {
+    const all = shown.length > 0 && doneN === shown.length;
+    if (all && $("hideDone").checked && editing?.prop !== p.id && editingProp !== p.id) continue;
     const card = el("div", "card" + (all ? " alldone" : ""));
     const ph = el("div", "ph");
-    ph.append(el("h2", "", p.name));
+    const h2 = el("h2");
+    const title = el("span", "", p.name);
+    if (p.added) title.append(el("span", "addtag", "追加"));
+    else if (p.e) title.append(el("span", "addtag", "修正"));
+    const cnt = el("span", "cnt"); cnt.innerHTML = `選定済 <b>${doneN}/${shown.length}</b>`;
+    if (canWrite()) {
+      const pp = el("button", "ppen", "✎"); pp.type = "button"; pp.title = "物件を直す・削除";
+      pp.onclick = () => { editingProp = p.id; editing = null; render(); };
+      cnt.append(pp);
+    }
+    h2.append(title, cnt); ph.append(h2);
     const sub = el("div", "sub");
-    sub.innerHTML = `準備希望日 <b>${esc(p.prepLabel)}</b>　施工 ${esc(p.workLabel)}　${esc(p.contractor || "業者未定")}　選定済 <b>${doneN} / ${p.items.length}</b>`;
+    sub.innerHTML = `準備 <b>${esc(p.prepLabel)}</b>　施工 ${esc(p.workLabel)}　${esc(p.contractor || "業者未定")}`;
     ph.append(sub);
     const tags = el("div", "tags");
     if (p.watanabe) tags.append(el("span", "tag ok", "渡邉樹苗園 手配" + p.watanabe));
     if (p.source === "管理表") tags.append(el("span", "tag warn", "依頼シートなし：管理表の文から"));
-    if (p.source !== "Excel" && p.source !== "管理表") tags.append(el("span", "tag warn", "植栽内容未確認"));
+    if (p.source !== "Excel" && p.source !== "管理表" && !p.added) tags.append(el("span", "tag warn", "植栽内容未確認"));
     if (!p.folderFound) tags.append(el("span", "tag warn", "お客様フォルダが見つからない"));
     if (p.delivery === "有") tags.append(el("span", "tag", "配送あり"));
     if (p.note) tags.append(el("span", "tag", p.note));
     if (tags.childNodes.length) ph.append(tags);
     card.append(ph);
-    if (!p.items.length) card.append(el("div", "empty", "植栽の内容が分かりません。依頼シートを確かめてください。"));
-    for (const it of p.items) {
-      const c = checks[it.id] || {};
-      const row = el("div", "row" + (c.done ? " done" : ""));
-      const box = document.createElement("input"); box.type = "checkbox"; box.checked = !!c.done; box.disabled = !canWrite();
-      box.onchange = () => setCheck(it.id, { done: box.checked });
-      const body = el("div", "body");
-      body.append(el("div", "name", it.name));
-      const spec = el("div", "spec");
-      const qtyWarn = /未確認/.test(it.qty);
-      spec.innerHTML = `${esc(it.height)}　${qtyWarn ? `<span class="warn">${esc(it.qty)}</span>` : esc(it.qty)}${it.form ? "　" + esc(it.form) : ""}`;
-      body.append(spec);
-      if (c.by) body.append(el("div", "by", `${c.done ? "選定" : "変更"}：${c.by}（${hhmm(c.atISO)}）`));
-      if (canWrite() || c.memo) {
-        const m = document.createElement("input"); m.className = "memo"; m.placeholder = "メモ（例：◯◯の圃場で確保）"; m.value = c.memo || ""; m.readOnly = !canWrite();
-        m.onchange = () => setCheck(it.id, { memo: m.value.slice(0, 200) });
-        body.append(m);
-      }
-      row.append(box, body);
-      card.append(row);
+    if (editingProp === p.id) card.append(propForm(p));
+    if (!shown.length && !(editing?.prop === p.id && editing.id === null)) card.append(el("div", "empty", "植栽の内容が分かりません。依頼シートを確かめるか、「＋品目を追加」で入れてください。"));
+    for (const it of shown) {
+      if (editing?.id === it.id) { card.append(formRow(p, it)); continue; }
+      card.append(itemRow(it, checks[it.id] || {}));
+    }
+    if (editing?.prop === p.id && editing.id === null) card.append(formRow(p, null));
+    if (gone.length) {
+      const g = el("div", "gone");
+      g.append("削除した品目：");
+      gone.forEach((it, n) => {
+        if (n) g.append("、");
+        g.append(el("span", "", `${it.name} ${fmtHeight(it.height)}`));
+        if (canWrite()) {
+          const b = el("button", "lnk", "戻す"); b.type = "button";
+          b.onclick = () => save({ ["edits." + it.id]: { ...it.e, deleted: false, ...stamp() } });
+          g.append(" ", b);
+        }
+      });
+      card.append(g);
+    }
+    if (canWrite() && !(editing?.prop === p.id && editing.id === null)) {
+      const f = el("div", "foot");
+      const add = el("button", "", "＋ 品目を追加"); add.type = "button";
+      add.onclick = () => { editing = { prop: p.id, id: null }; render(); };
+      f.append(add);
+      card.append(f);
     }
     list.append(card);
   }
+  if (propsGone.length) {
+    const g = el("div", "gone props");
+    g.append("削除した物件：");
+    propsGone.forEach((p, n) => {
+      if (n) g.append("、");
+      g.append(el("span", "", p.name));
+      if (canWrite()) {
+        const b = el("button", "lnk", "戻す"); b.type = "button";
+        // 管理表から来た邸は手直しごと消して元の姿に。画面で追加した邸は削除の印だけ外す
+        b.onclick = () => save({ ["props." + p.id]: p.added ? { ...p.e, deleted: false, ...stamp() } : deleteField() });
+        g.append(" ", b);
+      }
+    });
+    list.append(g);
+  }
 }
+
+function itemRow(it, c) {
+  const row = el("div", "row" + (c.done ? " done" : "") + (it.added ? " added" : ""));
+  const box = document.createElement("input"); box.type = "checkbox"; box.checked = !!c.done; box.disabled = !canWrite();
+  box.onchange = () => setCheck(it.id, box.checked);
+  const body = el("div", "body");
+  const line = el("div", "line");
+  line.append(el("span", "name", it.name));
+  const spec = el("span", "spec");
+  spec.innerHTML = `${esc(fmtHeight(it.height))}　${it.qty ? esc(it.qty + (it.unit || "")) : '<span class="warn">数量未確認</span>'}`;
+  line.append(spec);
+  body.append(line);
+  if (it.form) body.append(el("div", "by", it.form));
+  if (c.by && c.done) body.append(el("div", "by", `選定：${c.by}（${hhmm(c.atISO)}）`));
+  if (it.e && it.orig) {
+    const o = it.orig;
+    body.append(el("div", "by ed", `修正：${it.e.by}（${hhmm(it.e.atISO)}）　元 ${o.name} ${fmtHeight(o.height)} ${o.qty ? o.qty + (o.unit || "") : "数量未確認"}`));
+  } else if (it.added) {
+    body.append(el("div", "by ed", `追加：${it.e.by}（${hhmm(it.e.atISO)}）`));
+  }
+  row.append(box, body);
+  if (canWrite()) {
+    const pen = el("button", "pen", "✎"); pen.type = "button"; pen.title = "直す・削除";
+    pen.onclick = () => { editing = { prop: null, id: it.id }; render(); };
+    row.append(pen);
+  }
+  return row;
+}
+
+/** 手直し・追加の入力欄。it が null なら追加 */
+function formRow(p, it) {
+  const f = el("div", "form");
+  if (it?.orig || (it && !it.added && !it.e)) {
+    const o = it.orig || it;
+    f.append(el("div", "orig", `依頼シートでは：${o.name} ${fmtHeight(o.height)} ${o.qty ? o.qty + (o.unit || "") : "数量未確認"}`));
+  }
+  const name = input("f-name", it?.name || "", "樹種（例：アオダモ）");
+  const height = input("", it && it.height !== "指定なし" ? String(it.height || "").replace(/^H/, "") : "", "2.5");
+  height.inputMode = "decimal";
+  const qty = input("", it?.qty || "", "2"); qty.inputMode = "decimal";
+  const unit = input("", it ? (it.unit || "") : "本", "本"); unit.setAttribute("list", "units");
+  const grid = el("div", "grid");
+  grid.append(lab("高さ（m）", height), lab("数量", qty), lab("単位", unit));
+  f.append(name, grid);
+  const btns = el("div", "btns");
+  const ok = el("button", "save", it ? "保存" : "追加"); ok.type = "button";
+  const cancel = el("button", "", "やめる"); cancel.type = "button";
+  btns.append(ok, cancel);
+  const close = () => { editing = null; render(); };
+  cancel.onclick = close;
+  ok.onclick = async () => {
+    const v = {
+      name: name.value.normalize("NFKC").trim().slice(0, 60),
+      height: normHeight(height.value).slice(0, 20),
+      qty: qty.value.normalize("NFKC").trim().slice(0, 10),
+      unit: unit.value.normalize("NFKC").trim().slice(0, 10),
+    };
+    if (!v.name) { alert("樹種を入れてください。"); name.focus(); return; }
+    ok.disabled = true;
+    let done;
+    if (!it) done = await save({ ["edits.a" + Math.random().toString(36).slice(2, 12)]: { prop: p.id, ...v, ...stamp() } });
+    else if (it.added) done = await save({ ["edits." + it.id]: { ...it.e, ...v, ...stamp() } });
+    else done = await save({ ["edits." + it.id]: { ...v, deleted: false, ...stamp() } });
+    if (done) close(); else ok.disabled = false;
+  };
+  if (it) {
+    if (it.e && !it.added) {
+      const back = el("button", "", "元に戻す"); back.type = "button";
+      back.onclick = async () => { if (await save({ ["edits." + it.id]: deleteField() })) close(); };
+      btns.append(back);
+    }
+    const del = el("button", "del", "削除"); del.type = "button";
+    del.onclick = async () => {
+      if (!confirm(`「${it.name}」をリストから削除しますか？（あとで「戻す」で戻せます）`)) return;
+      const r = it.added
+        ? await save({ ["edits." + it.id]: { ...it.e, deleted: true, ...stamp() } })
+        : await save({ ["edits." + it.id]: { name: it.name, height: it.height, qty: it.qty, unit: it.unit || "", deleted: true, ...stamp() } });
+      if (r) close();
+    };
+    btns.append(del);
+  }
+  f.append(btns);
+  setTimeout(() => (it ? null : name).focus?.(), 0);
+  return f;
+}
+function input(cls, value, ph) { const i = document.createElement("input"); if (cls) i.className = cls; i.value = value; i.placeholder = ph; return i; }
+function lab(text, inp) { const l = el("label", "", text); l.append(inp); return l; }
 function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
 function esc(s) { return String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
 </script>

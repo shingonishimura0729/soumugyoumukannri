@@ -85,8 +85,11 @@ service cloud.firestore {
       }
       function staffEdit() {
         let d = request.resource.data;
-        return d.diff(resource.data).affectedKeys().hasOnly(['checks', 'updateRequest'])
+        // checks＝選定のチェック、edits＝品目の手直し・追加・削除、props＝物件の手直し・追加・削除
+        return d.diff(resource.data).affectedKeys().hasOnly(['checks', 'updateRequest', 'edits', 'props'])
           && d.checks is map && d.checks.size() <= 3000
+          && (!('edits' in d) || (d.edits is map && d.edits.size() <= 3000))
+          && (!('props' in d) || (d.props is map && d.props.size() <= 500))
           && (!('updateRequest' in d) || d.updateRequest == null
               || (d.updateRequest is map
                   && d.updateRequest.keys().hasOnly(['atISO', 'by'])
