@@ -283,7 +283,9 @@ function itemsOf(p, edits) {
     shown.push(e ? { ...base, name: e.name, height: e.height, qty: e.qty, unit: e.unit, id: it.id, orig: base, e } : { ...base, id: it.id });
   }
   for (const [id, e] of Object.entries(edits)) {
-    if (e?.prop === p.id && !e.deleted) shown.push({ id, name: e.name, height: e.height, qty: e.qty, unit: e.unit, form: "", added: true, e });
+    if (e?.prop !== p.id) continue;
+    const a = { id, name: e.name, height: e.height, qty: e.qty, unit: e.unit, form: "", added: true, e };
+    (e.deleted ? gone : shown).push(a);
   }
   return { shown, gone };
 }
