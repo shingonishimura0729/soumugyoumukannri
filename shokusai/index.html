@@ -209,7 +209,12 @@
   .bar.filters select, .bar.filters .chk { width:100%; min-width:0; }
   .bar.filters .chk { justify-content:center; }
   .bar.filters select { background:rgba(255,255,255,.12); color:#fff; border:1px solid rgba(255,255,255,.45); padding:0 6px; }
-  .bar.filters select option { color:#363735; background:#fff; }
+  .bar.filters select option, .bar.filters select optgroup { color:#363735; background:#fff; }
+  .fsel { position:relative; display:flex; align-items:center; height:30px; min-width:0; padding:0 18px 0 7px; border-radius:8px; border:1px solid rgba(255,255,255,.45); background:rgba(255,255,255,.12); color:#fff; font-size:12px; }
+  .fsel span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .fsel::after { content:"▾"; position:absolute; right:6px; top:50%; transform:translateY(-52%); font-size:11px; opacity:.85; pointer-events:none; }
+  .fsel.on { background:var(--sand); border-color:var(--sand); color:#363735; font-weight:bold; }
+  .bar.filters .fsel select { position:absolute; inset:0; width:100%; height:100%; opacity:0; font-size:16px; cursor:pointer; }
   .bar.filters .chk { font-size:12px; height:30px; padding:0 8px; border-radius:8px; border:1px solid rgba(255,255,255,.45); display:flex; align-items:center; gap:4px; white-space:nowrap; }
   .bar.filters .chk input { margin:0; accent-color:var(--sand); }
   /* 本文：コンセプトカラーに合わせる */
@@ -239,25 +244,27 @@
   </div>
   <div class="bar filters">
     <select id="range" aria-label="期間で絞り込み">
-      <option value="all">期間</option>
-      <optgroup label="準備日が">
-        <option value="prep0">準備今日</option>
-        <option value="prep1">準備明日</option>
-        <option value="prep3">準備3日</option>
-        <option value="prep7">準備1週</option>
+      <option value="all" data-s="期間">すべての物件を表示</option>
+      <optgroup label="▼ 準備する日で絞る（遅れている物件も出ます）">
+        <option value="prep0" data-s="準備 今日">準備が今日の物件</option>
+        <option value="prep1" data-s="準備 明日">準備が明日までの物件</option>
+        <option value="prep3" data-s="準備 3日">準備が3日以内の物件</option>
+        <option value="prep7" data-s="準備 1週">準備が1週間以内の物件</option>
       </optgroup>
-      <optgroup label="施工日が">
-        <option value="work7">施工1週</option>
-        <option value="workThis">施工今月</option>
-        <option value="workNext">施工来月</option>
+      <optgroup label="▼ 施工する日で絞る">
+        <option value="work7" data-s="施工 1週">施工が1週間以内の物件</option>
+        <option value="workThis" data-s="施工 今月">施工が今月の物件</option>
+        <option value="workNext" data-s="施工 来月">施工が来月の物件</option>
       </optgroup>
     </select>
-    <select id="contractor" aria-label="業者で絞り込み"><option value="">業者</option></select>
+    <select id="contractor" aria-label="業者で絞り込み"><option value="" data-s="業者">すべての業者を表示</option></select>
     <select id="sort" aria-label="並び順">
-      <option value="prep">準備順</option>
-      <option value="work">施工順</option>
-      <option value="todo">未選定順</option>
-      <option value="name">名前順</option>
+      <optgroup label="▼ 並べる順番">
+        <option value="prep" data-s="準備日順">準備日が近い順</option>
+        <option value="work" data-s="施工日順">施工日が近い順</option>
+        <option value="todo" data-s="未選定順">まだ選んでいない木が多い順</option>
+        <option value="name" data-s="名前順">お客様名の順（あいうえお）</option>
+      </optgroup>
     </select>
     <label class="chk" title="選び終えた邸を隠す"><input type="checkbox" id="hideDone"> 済を隠す</label>
   </div>
@@ -418,6 +425,24 @@ $("hideDone").onchange = () => { try { localStorage.setItem("shokusai_hideDone",
 try { $("hideDone").checked = !!localStorage.getItem("shokusai_hideDone"); } catch {}
 $("sort").onchange = () => { try { localStorage.setItem("shokusai_sort", $("sort").value); } catch {} render(); };
 try { const v = localStorage.getItem("shokusai_sort"); if (v) $("sort").value = v; } catch {}
+/**
+ * 絞り込みのボタン：開いたときは分かりやすい長い文（option の文字）、
+ * 閉じているときは短い文字（data-s）を出す。本物の select は透明にして上に重ねる。
+ * 絞り込みがかかっているときは色を変える。
+ */
+const FSEL = ["range", "contractor", "sort"];
+for (const id of FSEL) {
+  const s = $(id), w = el("label", "fsel"); s.before(w); w.append(el("span"), s);
+  s.addEventListener("change", fselSync);
+}
+function fselSync() {
+  for (const id of FSEL) {
+    const s = $(id), o = s.selectedOptions[0], w = s.parentElement;
+    w.firstChild.textContent = o ? (o.dataset.s || o.text) : "";
+    w.classList.toggle("on", id !== "sort" && !!s.value && s.value !== "all");
+  }
+}
+fselSync();
 $("addProp").onclick = () => { if (draft && !confirm("編集中の物件があります。保存せずに切り替えますか？")) return; startEdit(null); window.scrollTo(0, 0); };
 
 /** 「2026-11-20」→「11/20」 */
@@ -771,8 +796,12 @@ function render() {
   let conSel = $("contractor").value;
   try { conSel = conSel || localStorage.getItem("shokusai_contractor") || ""; } catch {}
   $("contractor").innerHTML = "";
-  $("contractor").append(new Option("業者", ""), ...cons.map((c) => new Option(honor(c), c)));
+  const conAll = new Option("すべての業者を表示", ""); conAll.dataset.s = "業者";
+  const conGrp = document.createElement("optgroup"); conGrp.label = "▼ この業者の物件だけ表示";
+  conGrp.append(...cons.map((c) => new Option(honor(c), c)));
+  $("contractor").append(conAll, conGrp);
   $("contractor").value = cons.includes(conSel) ? conSel : "";
+  fselSync();
   const by = $("sort").value;
   const cmp = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
   rows.sort((a, b) =>
