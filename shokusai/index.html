@@ -30,6 +30,33 @@
   .form .grid.two label.wide { grid-column:1 / -1; }
   .bar label { font-size:12px; display:flex; align-items:center; gap:4px; }
   #shownCount { font-size:11px; opacity:.9; }
+  /* 一覧表（携帯では横に動かす。物件名の列は左に固定） */
+  .tblwrap { overflow-x:auto; -webkit-overflow-scrolling:touch; border:1px solid var(--line); border-radius:10px; background:var(--card); margin:8px 0; }
+  main:has(.tblwrap) { max-width:1400px; }
+  .tbl { border-collapse:separate; border-spacing:0; font-size:12.5px; min-width:980px; width:100%; }
+  .tbl th { background:var(--head); color:#fff; font-weight:bold; padding:6px 8px; text-align:left; white-space:nowrap; font-size:12px; }
+  .tbl td { padding:6px 8px; border-top:1px solid var(--line); vertical-align:top; background:var(--card); }
+  .tbl tbody tr:nth-child(even) td { background:color-mix(in srgb, var(--soft) 45%, var(--card)); }
+  .tbl th:first-child, .tbl td:first-child { position:sticky; left:0; z-index:1; box-shadow:2px 0 0 var(--line); }
+  .tbl td.nm { min-width:120px; max-width:150px; }
+  .tbl .nmbtn { border:none; background:none; padding:0; color:var(--edit); font-weight:bold; font-size:13px; text-align:left; text-decoration:underline; }
+  .tbl td.dt { white-space:nowrap; }
+  .tbl td.dt small { display:block; color:var(--sub); font-size:11px; }
+  .tbl td.dt.soon small { color:var(--warn); font-weight:bold; }
+  .tbl td.dt.late { background:var(--warnbg) !important; }
+  .tbl td.dt.late small { color:var(--warn); font-weight:bold; }
+  .tbl td.pl { min-width:250px; }
+  .tbl .pline { display:flex; align-items:center; gap:6px; padding:1px 0; }
+  .tbl .pline input { width:18px; height:18px; margin:0; accent-color:var(--accent); flex:none; }
+  .tbl .pline .pn { flex:1; }
+  .tbl .pline .ps { color:var(--sub); white-space:nowrap; font-size:11.5px; }
+  .tbl .pline.done .pn { color:var(--done); text-decoration:line-through; }
+  .tbl td.num { white-space:nowrap; font-weight:bold; text-align:center; }
+  .tbl td.num.ok { color:var(--accent); }
+  .tbl tr.alldone td { opacity:.75; }
+  .tbl td a, .tbl td .lnk { color:var(--edit); white-space:nowrap; font-size:12.5px; border:none; background:none; padding:0; display:block; }
+  .tbl td.nt { min-width:120px; font-size:11.5px; color:var(--sub); }
+  .tbl .warn { color:var(--warn); font-weight:bold; }
   /* ブラウザで開く注意書き（トップに必ず出す） */
   .bnote { margin:8px 0 4px; padding:8px 10px; border-radius:10px; border:1px solid var(--warn); background:var(--warnbg); color:var(--ink); font-size:12.5px; line-height:1.6; }
   .bnote b { color:var(--warn); }
@@ -158,6 +185,10 @@
       <option value="workNext">施工：来月</option>
     </select>
     <select id="contractor" aria-label="業者で絞り込み"><option value="">業者：すべて</option></select>
+    <select id="view" aria-label="表示の形">
+      <option value="card">表示：カード</option>
+      <option value="table">表示：一覧表</option>
+    </select>
     <span id="shownCount"></span>
   </div>
 </header>
@@ -266,7 +297,8 @@ const closeVideo = () => { $("guideVideo").pause(); $("videoBox").hidden = true;
 $("videoClose").onclick = closeVideo;
 $("videoBox").onclick = (e) => { if (e.target === $("videoBox")) closeVideo(); };
 
-for (const id of ["range", "contractor"]) {
+try { const v = localStorage.getItem("shokusai_view"); if (v) $("view").value = v; } catch {}
+for (const id of ["range", "contractor", "view"]) {
   $(id).onchange = () => { try { localStorage.setItem("shokusai_" + id, $(id).value); } catch {} render(); };
 }
 try { const v = localStorage.getItem("shokusai_range"); if (v) $("range").value = v; } catch {}
@@ -673,6 +705,9 @@ function render() {
     : by === "todo" ? (b.shown.length - b.doneN) - (a.shown.length - a.doneN) || cmp(a.p.prepSort, b.p.prepSort)
     : cmp(a.p.prepSort, b.p.prepSort) || cmp(a.p.workSort, b.p.workSort));
   let shownN = 0;
+  // 一覧表で見るときは、絞り込んだ邸を表にまとめる（編集中はカードに戻す）
+  const tableView = $("view").value === "table" && !draft;
+  const tableRows = [];
   for (const { p, shown, gone, doneN } of rows) {
     const isEdit = draft?.id === p.id;
     const all = shown.length > 0 && doneN === shown.length;
@@ -680,6 +715,7 @@ function render() {
     if (!isEdit && !passRange(p)) continue;
     if (!isEdit && $("contractor").value && (p.contractor || "業者未定") !== $("contractor").value) continue;
     shownN++;
+    if (tableView) { tableRows.push({ p, shown, doneN, all, checks }); continue; }
     const card = el("div", "card" + (all && !isEdit ? " alldone" : "") + (isEdit ? " editing" : ""));
     card.dataset.pid = p.id;
     const ph = el("div", "ph");
@@ -739,6 +775,7 @@ function render() {
     if (gone.length) card.append(el("div", "gone", "削除した品目：" + gone.map((it) => `${it.name} ${fmtHeight(it.height)}`).join("、")));
     list.append(card);
   }
+  if (tableView && tableRows.length) list.append(buildTable(tableRows));
   const filtered = $("range").value !== "all" || $("contractor").value || $("hideDone").checked;
   $("shownCount").textContent = filtered ? `${shownN} / ${rows.length}邸を表示` : `${rows.length}邸`;
   if (filtered && !shownN) list.append(el("p", "note", "条件に合う邸はありません。上の絞り込みを「すべて」に戻すと全部見られます。"));
@@ -804,6 +841,67 @@ function itemRow(it, c) {
   row.append(box, body);
   return row;
 }
+/**
+ * 一覧表（元の「植栽依頼一括管理表」のような表）。携帯では横に動かして見る。物件名の列は左に固定。
+ * 木の□はここでも押せる。物件名を押すと、カード表示のその邸へ移る（編集はカードで）。
+ */
+function buildTable(rows) {
+  const wrap = el("div", "tblwrap");
+  const t = el("table", "tbl");
+  const head = el("tr");
+  for (const h of ["物件名", "準備", "施工", "業者", "植栽（選定）", "選定済", "配送", "渡邉樹苗園 様", "地図", "図面", "備考"]) head.append(el("th", "", h));
+  const thead = el("thead"); thead.append(head); t.append(thead);
+  const tb = el("tbody");
+  for (const { p, shown, doneN, all, checks } of rows) {
+    const tr = el("tr", all ? "alldone" : "");
+    const nameTd = el("td", "nm");
+    const a = el("button", "nmbtn", p.name); a.type = "button";
+    a.onclick = () => { $("view").value = "card"; try { localStorage.setItem("shokusai_view", "card"); } catch {} render(); focusProp(p.id); };
+    nameTd.append(a);
+    if (p.added) nameTd.append(el("span", "addtag", "追加"));
+    tr.append(nameTd);
+    const dateTd = (label, key, warnDays) => {
+      const td = el("td", "dt"); const n = daysFrom(key);
+      td.className = "dt" + (n != null && n < 0 ? " late" : n != null && n <= warnDays ? " soon" : "");
+      td.append(el("b", "", label + wd(key)));
+      if (n != null) td.append(el("small", "", relText(n)));
+      return td;
+    };
+    tr.append(dateTd(p.prepLabel, p.prepSort, 2), dateTd(p.workLabel, p.workSort, 1), el("td", "", honor(p.contractor)));
+    const plants = el("td", "pl");
+    if (!shown.length) plants.append(el("span", "warn", "植栽内容未確認"));
+    for (const it of shown) {
+      const c = checks[it.id] || {};
+      const line = el("label", "pline" + (c.done ? " done" : ""));
+      const box = document.createElement("input"); box.type = "checkbox"; box.checked = !!c.done; box.disabled = !canWrite();
+      box.onchange = () => setCheck(it.id, box.checked);
+      line.append(box, el("span", "pn", it.name), el("span", "ps", `${fmtHeight(it.height)} ${it.qty ? it.qty + (it.unit || "") : "数量未確認"}`));
+      plants.append(line);
+    }
+    tr.append(plants);
+    tr.append(el("td", "num" + (all ? " ok" : ""), `${doneN}/${shown.length}`));
+    tr.append(el("td", "", p.delivery || ""), el("td", "", p.watanabe ? "手配" + p.watanabe : ""));
+    const mapTd = el("td", "");
+    if (p.address) {
+      const isLink = /^https:\/\//i.test(p.address);
+      if (isLink || !/^[a-z]+:/i.test(p.address)) {
+        const m = el("a", "", "📍地図"); m.target = "_blank"; m.rel = "noopener noreferrer";
+        m.href = isLink ? p.address : "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent(p.address);
+        tip(m, isLink ? "Googleマップで開く" : "Googleマップで探す", p.address);
+        mapTd.append(m);
+      }
+    }
+    tr.append(mapTd);
+    const drawTd = el("td", "");
+    if (/^https:\/\//i.test(p.drawUrl || "")) { const d = el("a", "", "📄リンク"); d.href = p.drawUrl; d.target = "_blank"; d.rel = "noopener noreferrer"; tip(d, "外構図面を開く（リンク）", p.drawUrl); drawTd.append(d); }
+    if (p.drawFile) { const b = el("button", "lnk", "📄PDF"); b.type = "button"; b.onclick = () => openFile(p.drawFile, b); tip(b, "外構図面を開く（PDF）", p.drawFile.name); drawTd.append(b); }
+    tr.append(drawTd, el("td", "nt", p.note || ""));
+    tb.append(tr);
+  }
+  t.append(tb); wrap.append(t);
+  return wrap;
+}
+
 /** 業者名は敬意を込めて必ず「様」を付けて表示する（データはそのまま。未定のときは付けない） */
 function honor(c) {
   const s = String(c || "").trim();
