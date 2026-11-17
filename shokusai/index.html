@@ -260,8 +260,10 @@ function itemsOf(p, edits) {
     if (e?.deleted) { gone.push({ ...base, id: it.id, e, orig: base }); continue; }
     shown.push(e ? { ...base, name: e.name, height: e.height, qty: e.qty, unit: e.unit, id: it.id, orig: base, e } : { ...base, id: it.id, orig: base });
   }
-  for (const [id, e] of Object.entries(edits)) {
-    if (e?.prop !== p.id) continue;
+  // 画面で追加した木は、追加した順に並べる（保存先の並びは順不同のため）
+  const adds = Object.entries(edits).filter(([, e]) => e?.prop === p.id)
+    .sort(([, a], [, b]) => String(a.created || a.atISO).localeCompare(String(b.created || b.atISO)));
+  for (const [id, e] of adds) {
     const a = { id, name: e.name, height: e.height, qty: e.qty, unit: e.unit, form: "", added: true, e };
     (e.deleted ? gone : shown).push(a);
   }
@@ -307,7 +309,7 @@ async function saveDraft(btn) {
   for (const it of d.items) {
     const v = { name: it.name.normalize("NFKC").trim().slice(0, 60), height: normHeight(it.height).slice(0, 20),
       qty: it.qty.normalize("NFKC").trim().slice(0, 10), unit: it.unit.normalize("NFKC").trim().slice(0, 10) };
-    if (it.added && !it.id) { if (v.name && !it.deleted) patch["edits.a" + rnd()] = { prop: pid, ...v, ...st }; continue; }
+    if (it.added && !it.id) { if (v.name && !it.deleted) patch["edits.a" + rnd()] = { prop: pid, ...v, ...st, created: new Date(Date.now() + d.items.indexOf(it)).toISOString() }; continue; }
     if (it.added) {
       if (!v.name) v.name = it.e.name;
       if (same(v, it.e) && !!it.e.deleted === it.deleted) continue;
