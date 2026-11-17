@@ -22,7 +22,7 @@ import { describe, it } from "node:test";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 /** 画面として確かめるもの */
-const PAGES = ["renraku/index.html"];
+const PAGES = ["renraku/index.html", "shokusai/index.html"];
 
 /** ファイルが export している名前を集める */
 function exportsOf(file) {
@@ -54,6 +54,8 @@ for (const page of PAGES) {
     const file = resolve(root, page);
     const html = readFileSync(file, "utf8");
     const script = scriptOf(html);
+    /** お客様連絡（renraku）の画面だけに当てはまる約束 */
+    const renrakuOnly = page === "renraku/index.html" ? it : () => {};
 
     it("JavaScript の構文が通る", () => {
       const out = join(tmpdir(), `${page.replace(/[\\/]/g, "-")}.mjs`);
@@ -71,7 +73,7 @@ for (const page of PAGES) {
       assert.deepEqual(missing, [], `HTML に無い id: ${missing.join(", ")}`);
     });
 
-    it("URLを作る枠が、入力の枠より前にある", () => {
+    renrakuOnly("URLを作る枠が、入力の枠より前にある", () => {
       /**
        * 使う順番が「URLを作る → そのURLで入れる」なので、画面もその順に置く。
        * **逆になると、保存されないまま入力させてしまう。**
@@ -83,7 +85,7 @@ for (const page of PAGES) {
       assert.ok(setup < needs, "URLを作る枠が入力の枠より後ろにあります");
     });
 
-    it("お客様名を文面に渡していない", () => {
+    renrakuOnly("お客様名を文面に渡していない", () => {
       /**
        * お客様名は**どのトークルームのURLかを見分けるためだけ**のもの。
        * 文面に渡すと宛名が付いてしまう。渡していないことを見張る。

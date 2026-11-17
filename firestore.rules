@@ -60,6 +60,46 @@ service cloud.firestore {
       allow list, delete: if false;
     }
 
+    /**
+     * 植栽の選定チェック（shokusai/）。
+     *
+     * 1つの文書に、リスト（properties）・チェック（checks）・更新の依頼（updateRequest）をまとめて置く。
+     *
+     *   見る：文書のIDを知っている人なら誰でも。社外の渡邉樹苗園さんにもリンクで見てもらうため。
+     *         IDは推測できない長さの乱数。renrakuWeeks と同じく `list` は絶対に許さない
+     *   書く：・会社のPC（植栽ﾁｪｯｸ\sync.mjs）の専用アカウント … リストと状態を作り直す
+     *         ・会社の Google アカウント（@archigarden.net）でログインしたスタッフ … チェック・メモ・更新の依頼だけ
+     *
+     * 専用アカウントのメール／パスワードでのログインは「誰でも作れる」ので、
+     * スタッフかどうかは**Googleでログインしていること**まで確かめる。
+     */
+    match /shokusaiBoards/{boardId} {
+      function isPc() {
+        return request.auth != null && request.auth.uid == 'mLhqZO8VSEMTyemWyIKKlpqf4kx1';
+      }
+      function isStaff() {
+        return request.auth != null
+          && request.auth.token.firebase.sign_in_provider == 'google.com'
+          && request.auth.token.email_verified == true
+          && request.auth.token.email.matches('.*@archigarden[.]net$');
+      }
+      function staffEdit() {
+        let d = request.resource.data;
+        return d.diff(resource.data).affectedKeys().hasOnly(['checks', 'updateRequest'])
+          && d.checks is map && d.checks.size() <= 3000
+          && (!('updateRequest' in d) || d.updateRequest == null
+              || (d.updateRequest is map
+                  && d.updateRequest.keys().hasOnly(['atISO', 'by'])
+                  && d.updateRequest.atISO is string && d.updateRequest.atISO.size() <= 32
+                  && d.updateRequest.by is string && d.updateRequest.by.size() <= 40));
+      }
+
+      allow get: if true;
+      allow create: if isPc();
+      allow update: if isPc() || (isStaff() && staffEdit());
+      allow list, delete: if false;
+    }
+
     // ここに書いていないものは全部拒否
     match /{document=**} {
       allow read, write: if false;

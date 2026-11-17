@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#4a6650">
+<title>植栽 選定チェック</title>
+<style>
+  :root { --bg:#f5f6f2; --card:#fff; --ink:#222; --sub:#6b6f66; --line:#dfe3da; --head:#4a6650; --soft:#e7efe3; --accent:#556529; --warn:#b5651d; --warnbg:#fbefe4; --done:#8a9a7e; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#151714; --card:#1f221d; --ink:#eceee9; --sub:#9aa093; --line:#33382f; --head:#2f4434; --soft:#26301f; --accent:#9fb35a; --warn:#e3a066; --warnbg:#3a2a1c; --done:#7c8a71; } }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font-family:system-ui,"Hiragino Sans","Yu Gothic UI",sans-serif; -webkit-text-size-adjust:100%; }
+  header { background:var(--head); color:#fff; padding:14px 16px 12px; position:sticky; top:0; z-index:5; }
+  header h1 { margin:0; font-size:18px; }
+  #meta { font-size:12px; opacity:.85; margin-top:4px; }
+  .bar { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:10px; }
+  .bar button { font-size:14px; padding:8px 12px; border-radius:10px; border:none; background:#fff; color:var(--head); font-weight:bold; }
+  .bar button:disabled { opacity:.5; }
+  .bar label { font-size:13px; display:flex; align-items:center; gap:4px; }
+  #who { font-size:12px; opacity:.9; margin-left:auto; }
+  main { padding:12px 16px 40px; max-width:760px; margin:0 auto; }
+  .note { font-size:13px; color:var(--sub); margin:6px 0 12px; line-height:1.6; }
+  .err { color:var(--warn); }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:14px; margin:12px 0; overflow:hidden; }
+  .card.alldone { opacity:.6; }
+  .ph { background:var(--soft); padding:10px 14px; }
+  .ph h2 { margin:0; font-size:17px; }
+  .ph .sub { font-size:13px; color:var(--sub); margin-top:4px; }
+  .ph .sub b { color:var(--ink); }
+  .tags { margin-top:6px; display:flex; gap:6px; flex-wrap:wrap; }
+  .tag { font-size:11px; padding:2px 8px; border-radius:20px; background:var(--card); border:1px solid var(--line); color:var(--sub); }
+  .tag.warn { background:var(--warnbg); border-color:var(--warn); color:var(--warn); }
+  .tag.ok { border-color:var(--accent); color:var(--accent); }
+  .row { display:flex; gap:10px; align-items:flex-start; padding:10px 14px; border-top:1px solid var(--line); }
+  .row input[type=checkbox] { width:24px; height:24px; margin:2px 0 0; accent-color:var(--accent); flex:none; }
+  .row .body { flex:1; min-width:0; }
+  .row .name { font-size:16px; }
+  .row.done .name { color:var(--done); text-decoration:line-through; }
+  .row .spec { font-size:13px; color:var(--sub); margin-top:2px; }
+  .row .spec .warn { color:var(--warn); font-weight:bold; }
+  .row .by { font-size:11px; color:var(--sub); margin-top:3px; }
+  .row .memo { width:100%; margin-top:6px; font-size:14px; padding:6px 8px; border-radius:8px; border:1px solid var(--line); background:var(--bg); color:var(--ink); }
+  .empty { padding:12px 14px; border-top:1px solid var(--line); color:var(--warn); font-size:14px; }
+  #login { display:none; }
+</style>
+</head>
+<body>
+<header>
+  <h1>植栽手配　選定チェック</h1>
+  <div id="meta">読み込み中…</div>
+  <div class="bar">
+    <button id="refresh" type="button" disabled>更新</button>
+    <button id="login" type="button">ログインしてチェック</button>
+    <label><input type="checkbox" id="hideDone"> 選び終えた邸を隠す</label>
+    <span id="who"></span>
+  </div>
+</header>
+<main>
+  <p class="note" id="guide"></p>
+  <div id="list"></div>
+</main>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
+import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-auth.js";
+import { getFirestore, doc, onSnapshot, updateDoc } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
+import { firebaseConfig } from "../assets/js/firebase-config.js";
+
+/*
+ * 植栽の選定チェック。
+ * リストは会社のPCが「植栽依頼一括管理表」と各邸の「植栽依頼ｼｰﾄ」から作り、Firebase に置く。
+ * この画面はそれを表示し、チェックとメモを書き込むだけ。
+ *
+ * 見る：URL の ?b=（ボードのID）を知っている人なら誰でも（渡邉樹苗園さんもログインなしで見られる）
+ * 書く：会社の Google アカウント（@archigarden.net）でログインした人だけ。守りは firestore.rules にある
+ * お客様名などはコードに書かない（公開リポジトリのため）。すべて Firebase から読む。
+ */
+const $ = (id) => document.getElementById(id);
+const boardId = new URLSearchParams(location.search).get("b");
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+let board = null, user = null;
+
+const STAFF = /@archigarden\.net$/i;
+const canWrite = () => !!(user && user.email && STAFF.test(user.email));
+const shortName = (u) => (u.displayName || u.email || "").split(/[\s@]/)[0];
+const hhmm = (iso) => { if (!iso) return ""; const d = new Date(iso); return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`; };
+
+if (!boardId) {
+  $("meta").textContent = "リンクが正しくありません。";
+  $("guide").innerHTML = '<span class="err">渡されたリンクをそのまま開いてください（最後に「?b=…」が付いたもの）。</span>';
+} else {
+  onSnapshot(doc(db, "shokusaiBoards", boardId), (snap) => {
+    if (!snap.exists()) { $("meta").textContent = "このリンクのリストは見つかりません。"; return; }
+    board = snap.data(); render();
+  }, (e) => { $("meta").textContent = "読み込めませんでした：" + e.code; });
+}
+
+onAuthStateChanged(auth, (u) => {
+  user = u;
+  $("login").style.display = u ? "none" : "inline-block";
+  $("who").innerHTML = "";
+  if (u) {
+    const s = document.createElement("span");
+    s.textContent = (canWrite() ? "" : "（チェックできないアカウント）") + shortName(u) + " ";
+    const out = document.createElement("a"); out.href = "#"; out.textContent = "ログアウト"; out.style.color = "#fff";
+    out.onclick = (e) => { e.preventDefault(); signOut(auth); };
+    $("who").append(s, out);
+  }
+  render();
+});
+$("login").onclick = async () => {
+  const p = new GoogleAuthProvider();
+  p.setCustomParameters({ hd: "archigarden.net", prompt: "select_account" });
+  try { await signInWithPopup(auth, p); } catch (e) { if (e.code !== "auth/popup-closed-by-user") alert("ログインできませんでした：" + e.code); }
+};
+$("refresh").onclick = async () => {
+  if (!canWrite()) return;
+  $("refresh").disabled = true;
+  try { await updateDoc(doc(db, "shokusaiBoards", boardId), { updateRequest: { atISO: new Date().toISOString(), by: shortName(user) } }); }
+  catch (e) { alert("更新を頼めませんでした：" + e.code); $("refresh").disabled = false; }
+};
+$("hideDone").onchange = () => { try { localStorage.setItem("shokusai_hideDone", $("hideDone").checked ? "1" : ""); } catch {} render(); };
+try { $("hideDone").checked = !!localStorage.getItem("shokusai_hideDone"); } catch {}
+
+async function setCheck(id, patch) {
+  const cur = board.checks?.[id] || {};
+  const next = { done: !!cur.done, memo: cur.memo || "", ...patch, by: shortName(user), atISO: new Date().toISOString() };
+  try { await updateDoc(doc(db, "shokusaiBoards", boardId), { ["checks." + id]: next }); }
+  catch (e) { alert("保存できませんでした：" + e.code); render(); }
+}
+
+function render() {
+  if (!board) return;
+  const st = board.status || {};
+  const building = st.state === "building";
+  $("meta").textContent = (board.builtAtISO ? `${hhmm(board.builtAtISO)} 時点` : "まだ作られていません") + (st.message ? `　${st.message}` : "");
+  $("refresh").disabled = !canWrite() || building;
+  $("refresh").textContent = building ? "更新中…" : "更新";
+  $("guide").innerHTML = st.state === "error" ? `<span class="err">更新に失敗しました：${esc(st.message)}</span>`
+    : !user ? "見るだけならこのままで大丈夫です。チェックを付ける人は「ログインしてチェック」から会社の Google アカウントでログインしてください。"
+    : canWrite() ? "選んだ木の□を押してください。全員の画面にすぐ反映されます。「更新」で管理表と依頼シートから作り直します（チェックは消えません）。"
+    : '<span class="err">このアカウントではチェックを付けられません。会社のアカウント（@archigarden.net）でログインし直してください。</span>';
+
+  const checks = board.checks || {};
+  const list = $("list"); list.innerHTML = "";
+  for (const p of board.properties || []) {
+    const doneN = p.items.filter((i) => checks[i.id]?.done).length;
+    const all = p.items.length > 0 && doneN === p.items.length;
+    if (all && $("hideDone").checked) continue;
+    const card = el("div", "card" + (all ? " alldone" : ""));
+    const ph = el("div", "ph");
+    ph.append(el("h2", "", p.name));
+    const sub = el("div", "sub");
+    sub.innerHTML = `準備希望日 <b>${esc(p.prepLabel)}</b>　施工 ${esc(p.workLabel)}　${esc(p.contractor || "業者未定")}　選定済 <b>${doneN} / ${p.items.length}</b>`;
+    ph.append(sub);
+    const tags = el("div", "tags");
+    if (p.watanabe) tags.append(el("span", "tag ok", "渡邉樹苗園 手配" + p.watanabe));
+    if (p.source === "管理表") tags.append(el("span", "tag warn", "依頼シートなし：管理表の文から"));
+    if (p.source !== "Excel" && p.source !== "管理表") tags.append(el("span", "tag warn", "植栽内容未確認"));
+    if (!p.folderFound) tags.append(el("span", "tag warn", "お客様フォルダが見つからない"));
+    if (p.delivery === "有") tags.append(el("span", "tag", "配送あり"));
+    if (p.note) tags.append(el("span", "tag", p.note));
+    if (tags.childNodes.length) ph.append(tags);
+    card.append(ph);
+    if (!p.items.length) card.append(el("div", "empty", "植栽の内容が分かりません。依頼シートを確かめてください。"));
+    for (const it of p.items) {
+      const c = checks[it.id] || {};
+      const row = el("div", "row" + (c.done ? " done" : ""));
+      const box = document.createElement("input"); box.type = "checkbox"; box.checked = !!c.done; box.disabled = !canWrite();
+      box.onchange = () => setCheck(it.id, { done: box.checked });
+      const body = el("div", "body");
+      body.append(el("div", "name", it.name));
+      const spec = el("div", "spec");
+      const qtyWarn = /未確認/.test(it.qty);
+      spec.innerHTML = `${esc(it.height)}　${qtyWarn ? `<span class="warn">${esc(it.qty)}</span>` : esc(it.qty)}${it.form ? "　" + esc(it.form) : ""}`;
+      body.append(spec);
+      if (c.by) body.append(el("div", "by", `${c.done ? "選定" : "変更"}：${c.by}（${hhmm(c.atISO)}）`));
+      if (canWrite() || c.memo) {
+        const m = document.createElement("input"); m.className = "memo"; m.placeholder = "メモ（例：◯◯の圃場で確保）"; m.value = c.memo || ""; m.readOnly = !canWrite();
+        m.onchange = () => setCheck(it.id, { memo: m.value.slice(0, 200) });
+        body.append(m);
+      }
+      row.append(box, body);
+      card.append(row);
+    }
+    list.append(card);
+  }
+}
+function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+function esc(s) { return String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
+</script>
+</body>
+</html>
