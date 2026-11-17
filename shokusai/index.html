@@ -164,11 +164,19 @@
   .form .btns .del { margin-left:auto; color:var(--warn); border-color:var(--warn); }
   #login { display:none; }
   /* 株立ちの選択（絵つき） */
-  .kabu { margin-top:6px; display:flex; align-items:flex-end; gap:8px; }
-  .kabu > label { flex:1; min-width:0; font-size:11px; color:var(--sub); display:flex; flex-direction:column; gap:2px; }
-  .kabu select { width:100%; font-size:16px; padding:6px 8px; min-height:36px; border-radius:8px; border:1px solid var(--line); background:var(--card); color:var(--ink); }
-  .kabu-ph { width:34px; height:54px; object-fit:cover; border-radius:6px; border:1px solid var(--line); cursor:zoom-in; flex:none; }
-  .kabu-ph.big { width:150px; height:240px; cursor:zoom-out; }
+  /* 編集：木ごとに小さなカード。入力欄は白をやめて薄いベージュ、高さ〜株立ち・写真を1行に */
+  .form .erow { background:var(--card); border:1px solid var(--line); border-top:1px solid var(--line); border-radius:10px; padding:6px 7px; margin-top:6px; }
+  .form .erow input, .form .erow select { background:var(--soft); border:1px solid transparent; }
+  .form .erow input:focus, .form .erow select:focus { border-color:var(--accent); outline:none; background:var(--card); }
+  .form .erow .x, .form .erow .back { padding:4px 9px; font-size:12px; }
+  .form .erow .grid { grid-template-columns:1.1fr .9fr 1fr 2.6fr auto; gap:5px; margin-top:5px; align-items:end; }
+  .form .erow .grid input { padding:5px 7px; }
+  .form .erow select { width:100%; min-width:0; font-size:16px; padding:5px 4px; min-height:34px; border-radius:8px; color:var(--ink); }
+  .kabu-ph { width:26px; height:34px; object-fit:cover; border-radius:6px; border:1px solid var(--line); cursor:zoom-in; display:block; }
+  .kabu-ph[hidden] { display:none; }
+  .kabu-ph-sp { width:26px; }
+  #kabuBig { position:fixed; inset:0; z-index:50; background:rgba(0,0,0,.6); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px; color:#fff; font-size:15px; font-weight:bold; }
+  #kabuBig img { max-width:80vw; max-height:70vh; border-radius:10px; }
 
   /* ---- 上の固定部分（余白を詰め、ボタンの役割を色で分ける） ---- */
   header { padding:6px 10px 6px; box-shadow:0 1px 4px rgba(0,0,0,.18); }
@@ -694,8 +702,8 @@ function editForm() {
       const h = bind(input("", it.height, "2.5"), it, "height"); h.inputMode = "decimal";
       const q = bind(input("", it.qty, "2"), it, "qty"); q.inputMode = "decimal";
       const u = bind(input("", it.unit, "本"), it, "unit"); u.setAttribute("list", "units");
-      g.append(lab("高さ（m）", h), lab("数量", q), lab("単位", u));
-      r.append(g, kabuPicker(it));
+      g.append(lab("高さ（m）", h), lab("数量", q), lab("単位", u), ...kabuPicker(it));
+      r.append(g);
     }
     if (it.base) {
       const b = it.base;
@@ -979,22 +987,31 @@ const kabuLabel = (v) => KABU.find((k) => k.key === kabuKey(v))?.label || "";
 const kabuNorm = (v) => kabuKey(v) || String(v || "").normalize("NFKC").trim();
 /** 見本写真：植栽依頼ｼｰﾄの「樹形　発注依頼時のイメージ写真」と同じ切り抜き（img/kabu*.jpg） */
 const kabuPhoto = (key) => key ? `img/kabu${key}.jpg` : "";
-/** 編集で株立ちを選ぶ（ドロップダウン＋選んだ形の見本写真。写真を押すと大きくなる） */
+/** 編集で株立ちを選ぶ（ドロップダウン＋選んだ形の見本写真。写真を押すと大きく出る）。
+ *  入力欄の1行に並べるので、[欄, 写真] の2つを返す */
 function kabuPicker(it) {
-  const box = el("div", "kabu");
   const sel = el("select");
-  const opts = [["", "株立ち：指定なし"], ...KABU.map((k) => [k.label, k.label])];
+  const opts = [["", "指定なし"], ...KABU.map((k) => [k.label, k.label.replace(/立$/, "")])];
   const cur = kabuKey(it.form);
   if (it.form && !cur) opts.push([it.form, it.form]); // 4つ以外の書き方はそのまま残す
   for (const [v, t] of opts) { const o = el("option", "", t); o.value = v; sel.append(o); }
   sel.value = cur ? kabuLabel(it.form) : (it.form || "");
   const img = el("img", "kabu-ph"); img.alt = "株立ちの見本写真"; img.title = "押すと大きく表示";
-  img.onclick = () => img.classList.toggle("big");
+  img.onclick = () => kabuBig(sel.value);
+  const cell = el("div", "kabu-ph-sp"); cell.append(img);
   const show = () => { const k = kabuKey(sel.value); img.hidden = !k; if (k) img.src = kabuPhoto(k); };
   sel.onchange = () => { it.form = sel.value; show(); };
   show();
-  box.append(lab("株立ち（形）", sel), img);
-  return box;
+  return [lab("株立ち", sel), cell];
+}
+/** 見本写真を画面の真ん中に大きく出す（どこを押しても閉じる） */
+function kabuBig(form) {
+  const k = kabuKey(form); if (!k) return;
+  const w = el("div"); w.id = "kabuBig";
+  const im = el("img"); im.src = kabuPhoto(k); im.alt = "株立ちの見本写真";
+  w.append(im, el("div", "", kabuLabel(form) + "（依頼シートの見本）"));
+  w.onclick = () => w.remove();
+  document.body.append(w);
 }
 
 /** 業者名は敬意を込めて必ず「様」を付けて表示する（データはそのまま。未定のときは付けない） */
