@@ -164,16 +164,10 @@
   .form .btns .del { margin-left:auto; color:var(--warn); border-color:var(--warn); }
   #login { display:none; }
   /* 株立ちの選択（絵つき） */
-  .kabu { margin-top:6px; }
-  .kabu-h { font-size:11px; color:var(--sub); margin-bottom:3px; }
-  .kabu-row { display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:5px; }
-  .kabu-opt { display:flex; flex-direction:column; align-items:center; gap:1px; padding:4px 2px 5px; border:1.5px solid var(--line); border-radius:10px; background:var(--card); color:var(--ink); cursor:pointer; }
-  .kabu-opt svg { width:100%; max-width:72px; height:auto; }
-  .kabu-opt b { font-size:11.5px; white-space:nowrap; }
-  .kabu-opt small { font-size:9.5px; color:var(--sub); white-space:nowrap; }
-  .kabu-opt.on { border-color:var(--accent); background:var(--soft); box-shadow:0 0 0 2px var(--accent) inset; }
-  .kabu-tag { display:inline-flex; align-items:center; gap:3px; }
-  .kabu-tag svg { width:22px; height:20px; }
+  .kabu { margin-top:6px; display:flex; align-items:flex-end; gap:8px; }
+  .kabu > label { flex:1; min-width:0; }
+  .kabu-ph { width:34px; height:54px; object-fit:cover; border-radius:6px; border:1px solid var(--line); cursor:zoom-in; flex:none; }
+  .kabu-ph.big { width:150px; height:240px; cursor:zoom-out; }
 
   /* ---- 上の固定部分（余白を詰め、ボタンの役割を色で分ける） ---- */
   header { padding:6px 10px 6px; box-shadow:0 1px 4px rgba(0,0,0,.18); }
@@ -905,7 +899,7 @@ function itemRow(it, c) {
   spec.innerHTML = `${esc(fmtHeight(it.height))}　${it.qty ? esc(it.qty + (it.unit || "")) : '<span class="warn">数量未確認</span>'}`;
   line.append(spec);
   body.append(line);
-  if (it.form) { const f = el("div", "by kabu-tag"); if (kabuKey(it.form)) f.innerHTML = kabuSvg(KABU.find((k) => k.key === kabuKey(it.form)).trunks); f.append(kabuLabel(it.form) || it.form); body.append(f); }
+  if (it.form) body.append(el("div", "by", kabuLabel(it.form) || it.form));
   if (c.by && c.done) body.append(el("div", "by", `選定：${c.by}（${hhmm(c.atISO)}）`));
   row.append(box, body);
   return row;
@@ -982,38 +976,23 @@ function kabuKey(v) {
 }
 const kabuLabel = (v) => KABU.find((k) => k.key === kabuKey(v))?.label || "";
 const kabuNorm = (v) => kabuKey(v) || String(v || "").normalize("NFKC").trim();
-/** 株立ちの絵（幹の本数が分かる見本の絵） */
-function kabuSvg(trunks) {
-  const W = 80, H = 72, baseX = 40, baseY = 64;
-  let trunk = "", crown = "";
-  for (let i = 0; i < trunks; i++) {
-    const t = trunks === 1 ? 0 : i / (trunks - 1) - 0.5; // -0.5 〜 0.5
-    const topX = baseX + t * 44, topY = 22 + Math.abs(t) * 14;
-    const midX = baseX + t * 14;
-    trunk += `<path d="M${baseX + t * 4} ${baseY} Q${midX} ${(baseY + topY) / 2 + 6} ${topX} ${topY}" fill="none" stroke="#6b5a45" stroke-width="${trunks === 1 ? 3.2 : 2}" stroke-linecap="round"/>`;
-    crown += `<ellipse cx="${topX}" cy="${topY - 4}" rx="${trunks === 1 ? 16 : 11}" ry="${trunks === 1 ? 14 : 9}" fill="#8aa05a" opacity=".55"/>`;
-  }
-  return `<svg viewBox="0 0 ${W} ${H}" aria-hidden="true"><line x1="10" y1="${baseY}" x2="70" y2="${baseY}" stroke="#b9ad92" stroke-width="2"/>${crown}${trunk}</svg>`;
-}
-/** 編集で株立ちを選ぶ（絵を押して選ぶ。もう一度押すと外す） */
+/** 見本写真：植栽依頼ｼｰﾄの「樹形　発注依頼時のイメージ写真」と同じ切り抜き（img/kabu*.jpg） */
+const kabuPhoto = (key) => key ? `img/kabu${key}.jpg` : "";
+/** 編集で株立ちを選ぶ（ドロップダウン＋選んだ形の見本写真。写真を押すと大きくなる） */
 function kabuPicker(it) {
   const box = el("div", "kabu");
-  box.append(el("div", "kabu-h", "株立ち（形）"));
-  const row = el("div", "kabu-row");
+  const sel = el("select");
+  const opts = [["", "株立ち：指定なし"], ...KABU.map((k) => [k.label, k.label])];
   const cur = kabuKey(it.form);
-  for (const k of KABU) {
-    const b = el("button", "kabu-opt" + (cur === k.key ? " on" : "")); b.type = "button";
-    b.innerHTML = kabuSvg(k.trunks);
-    b.append(el("b", "", k.label), el("small", "", k.note));
-    b.onclick = () => {
-      it.form = kabuKey(it.form) === k.key ? "" : k.label;
-      for (const x of row.children) x.classList.remove("on");
-      if (it.form) b.classList.add("on");
-    };
-    row.append(b);
-  }
-  box.append(row);
-  if (it.form && !cur) box.append(el("div", "orig", "いまの形：" + it.form));
+  if (it.form && !cur) opts.push([it.form, it.form]); // 4つ以外の書き方はそのまま残す
+  for (const [v, t] of opts) { const o = el("option", "", t); o.value = v; sel.append(o); }
+  sel.value = cur ? kabuLabel(it.form) : (it.form || "");
+  const img = el("img", "kabu-ph"); img.alt = "株立ちの見本写真"; img.title = "押すと大きく表示";
+  img.onclick = () => img.classList.toggle("big");
+  const show = () => { const k = kabuKey(sel.value); img.hidden = !k; if (k) img.src = kabuPhoto(k); };
+  sel.onchange = () => { it.form = sel.value; show(); };
+  show();
+  box.append(lab("株立ち（形）", sel), img);
   return box;
 }
 
