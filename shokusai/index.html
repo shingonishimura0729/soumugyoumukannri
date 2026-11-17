@@ -30,6 +30,18 @@
   .form .grid.two label.wide { grid-column:1 / -1; }
   .bar label { font-size:12px; display:flex; align-items:center; gap:4px; }
   #shownCount { font-size:11px; opacity:.9; }
+  /* ブラウザで開く注意書き（トップに必ず出す） */
+  .bnote { margin:8px 0 4px; padding:8px 10px; border-radius:10px; border:1px solid var(--warn); background:var(--warnbg); color:var(--ink); font-size:12.5px; line-height:1.6; }
+  .bnote b { color:var(--warn); }
+  .bnote a { color:var(--edit); font-weight:bold; white-space:nowrap; }
+  .bnote.inapp { border-width:2px; font-size:13.5px; }
+  /* 使い方動画 */
+  #videoBox { position:fixed; inset:0; z-index:60; background:rgba(0,0,0,.7); display:flex; align-items:center; justify-content:center; padding:12px; }
+  #videoBox[hidden] { display:none; }
+  #videoBox .vb { background:var(--card); border-radius:12px; overflow:hidden; width:min(960px, 100%); }
+  #videoBox .vh { display:flex; justify-content:space-between; align-items:center; padding:8px 12px; }
+  #videoBox .vh button { border:1px solid var(--line); background:var(--card); color:var(--ink); border-radius:8px; padding:5px 10px; font-size:13px; }
+  #videoBox video { display:block; width:100%; max-height:80vh; background:#000; }
   .pinfo { display:flex; gap:10px; flex-wrap:wrap; margin-top:4px; font-size:12.5px; }
   .pinfo a, .pinfo button { color:var(--edit); text-decoration:none; border:none; background:none; padding:0; font-size:12.5px; }
   .pinfo .draw { font-weight:bold; }
@@ -124,6 +136,7 @@
     <button id="refresh" type="button" disabled>更新</button>
     <button id="login" type="button">ログインしてチェック</button>
     <button id="addProp" type="button" style="display:none">＋物件</button>
+    <button id="howto" type="button">▶ 使い方動画</button>
     <select id="sort" aria-label="並び順">
       <option value="prep">準備日順</option>
       <option value="work">施工日順</option>
@@ -149,9 +162,20 @@
   </div>
 </header>
 <main>
+  <div class="bnote" id="browserNote">
+    <b>⚠ このアプリは必ず Safari・Chrome などのブラウザで開いてください。</b>
+    LINE WORKS などのアプリの中で開くと、ログインや図面が使えないことがあります。
+    <a id="browserHelp" href="browser.html">※詳しくはこちらから確認</a>
+  </div>
   <p class="note" id="guide"></p>
   <div id="list"></div>
 </main>
+<div id="videoBox" hidden>
+  <div class="vb">
+    <div class="vh"><b>使い方動画</b><button id="videoClose" type="button">閉じる ✕</button></div>
+    <video id="guideVideo" controls playsinline preload="none" src="guide.mp4"></video>
+  </div>
+</div>
 <datalist id="units"><option value="本"><option value="株"><option value="ポット"><option value="鉢"><option value="㎡"><option value="m"><option value="式"></datalist>
 
 <script type="module">
@@ -229,6 +253,19 @@ $("refresh").onclick = async () => {
   try { await updateDoc(ref(), { updateRequest: { atISO: new Date().toISOString(), by: shortName(user) } }); }
   catch (e) { alert("更新を頼めませんでした：" + e.code); $("refresh").disabled = false; }
 };
+// ---- ブラウザで開く注意書き・使い方動画 ----
+// 説明の資料にも同じボードのIDを渡し、そこから戻れるようにする
+$("browserHelp").href = "browser.html" + (boardId ? "?b=" + encodeURIComponent(boardId) : "");
+// LINE WORKS・LINE などのアプリの中の画面で開いているときは、注意書きを強める
+if (/WORKSMOBILE|LINEWORKS|\bLine\/|FBAN|FBAV|Instagram|; wv\)/i.test(navigator.userAgent)) {
+  $("browserNote").classList.add("inapp");
+  $("browserNote").querySelector("b").textContent = "⚠ いまアプリの中の画面で開いています。Safari・Chrome などのブラウザで開き直してください。";
+}
+$("howto").onclick = () => { $("videoBox").hidden = false; $("guideVideo").play().catch(() => {}); };
+const closeVideo = () => { $("guideVideo").pause(); $("videoBox").hidden = true; };
+$("videoClose").onclick = closeVideo;
+$("videoBox").onclick = (e) => { if (e.target === $("videoBox")) closeVideo(); };
+
 for (const id of ["range", "contractor"]) {
   $(id).onchange = () => { try { localStorage.setItem("shokusai_" + id, $(id).value); } catch {} render(); };
 }
