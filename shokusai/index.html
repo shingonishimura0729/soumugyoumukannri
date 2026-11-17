@@ -189,7 +189,7 @@
   /* 絞り込みの4つは1行に並べる */
   .bar.filters { display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:4px; overflow:visible; }
   @media (min-width:700px) { .bar.filters { grid-template-columns:repeat(4, minmax(0, 160px)); } }
-  .bar.filters select, .bar.filters .chk { font-size:12px; padding:0 4px; }
+  .bar.filters select, .bar.filters .chk { font-size:12px; padding:0 2px 0 6px; }
   .bar.filters select, .bar.filters .chk { width:100%; min-width:0; }
   .bar.filters .chk { justify-content:center; }
   .bar.filters select { background:rgba(255,255,255,.12); color:#fff; border:1px solid rgba(255,255,255,.45); padding:0 6px; }
@@ -224,13 +224,17 @@
   <div class="bar filters">
     <select id="range" aria-label="期間で絞り込み">
       <option value="all">期間</option>
-      <option value="prep0">準備〜今日</option>
-      <option value="prep1">準備〜明日</option>
-      <option value="prep3">準備3日内</option>
-      <option value="prep7">準備1週内</option>
-      <option value="work7">施工1週内</option>
-      <option value="workThis">施工今月</option>
-      <option value="workNext">施工来月</option>
+      <optgroup label="準備日が">
+        <option value="prep0">準備今日</option>
+        <option value="prep1">準備明日</option>
+        <option value="prep3">準備3日</option>
+        <option value="prep7">準備1週</option>
+      </optgroup>
+      <optgroup label="施工日が">
+        <option value="work7">施工1週</option>
+        <option value="workThis">施工今月</option>
+        <option value="workNext">施工来月</option>
+      </optgroup>
     </select>
     <select id="contractor" aria-label="業者で絞り込み"><option value="">業者</option></select>
     <select id="sort" aria-label="並び順">
