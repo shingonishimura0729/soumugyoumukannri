@@ -373,6 +373,7 @@ function startEdit(p, shown, gone) {
       : [newItem()],
   };
   render();
+  if (p) focusProp(p.id);
 }
 const same = (a, b) => ["name", "height", "qty", "unit"].every((k) => String(a[k] ?? "") === String(b[k] ?? ""));
 const rnd = () => Math.random().toString(36).slice(2, 12);
@@ -418,9 +419,9 @@ async function saveDraft(btn) {
     if (it.e && same(v, it.e) && !!it.e.deleted === it.deleted) continue;
     patch["edits." + it.id] = { ...v, deleted: it.deleted, ...st };
   }
-  if (!Object.keys(patch).length) { draft = null; render(); return; }
+  if (!Object.keys(patch).length) { draft = null; render(); focusProp(pid); return; }
   btn.disabled = true;
-  if (await save(patch)) { draft = null; render(); } else btn.disabled = false;
+  if (await save(patch)) { draft = null; render(); focusProp(pid); } else btn.disabled = false;
 }
 
 // ---- 外構図面の PDF ----
@@ -578,7 +579,7 @@ function editForm() {
   const ok = el("button", "save", d.id === "new" ? "追加" : "保存"); ok.type = "button";
   ok.onclick = () => saveDraft(ok);
   const cancel = el("button", "", "やめる"); cancel.type = "button";
-  cancel.onclick = () => { draft = null; render(); };
+  cancel.onclick = () => { const id = d.id; draft = null; render(); if (id !== "new") focusProp(id); };
   btns.append(ok, cancel);
   if (d.p) {
     const del = el("button", "del", "物件を削除"); del.type = "button";
@@ -611,7 +612,7 @@ function render() {
   const checks = board.checks || {}, edits = board.edits || {};
   const list = $("list"); list.innerHTML = "";
   if (draft?.id === "new") {
-    const c = el("div", "card editing");
+    const c = el("div", "card editing"); c.dataset.pid = "new";
     const ph = el("div", "ph"); ph.append(el("h2", "", "新しい物件"));
     c.append(ph, editForm()); list.append(c);
   }
@@ -643,6 +644,7 @@ function render() {
     if (!isEdit && $("contractor").value && (p.contractor || "業者未定") !== $("contractor").value) continue;
     shownN++;
     const card = el("div", "card" + (all && !isEdit ? " alldone" : "") + (isEdit ? " editing" : ""));
+    card.dataset.pid = p.id;
     const ph = el("div", "ph");
     const h2 = el("h2");
     const title = el("span", "", p.name);
@@ -728,8 +730,24 @@ function render() {
     }
     list.append(g);
   }
+  scrollToFocus();
 }
 let goneSel = "";
+
+/** 編集を始めた・終えた邸を、画面の一番上（見出しのすぐ下）に持ってくる */
+let focusPid = null, focusUntil = 0;
+function focusProp(id) { focusPid = id; focusUntil = Date.now() + 2500; scrollToFocus(); }
+// 自分で画面を動かしたら、追いかけるのをやめる
+for (const ev of ["wheel", "touchstart", "keydown"]) addEventListener(ev, () => { focusPid = null; }, { passive: true });
+function scrollToFocus() {
+  if (!focusPid || Date.now() > focusUntil) { focusPid = null; return; }
+  requestAnimationFrame(() => {
+    const c = [...document.querySelectorAll(".card")].find((x) => x.dataset.pid === focusPid);
+    if (!c) return;
+    const head = document.querySelector("header").offsetHeight;
+    window.scrollTo({ top: c.getBoundingClientRect().top + window.scrollY - head - 6, behavior: "auto" });
+  });
+}
 
 function itemRow(it, c) {
   const row = el("div", "row" + (c.done ? " done" : "") + (it.added ? " added" : ""));
