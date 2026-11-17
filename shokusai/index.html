@@ -55,6 +55,17 @@
   .row.done .name { color:var(--done); text-decoration:line-through; }
   .row .by { font-size:10.5px; color:var(--sub); margin-top:1px; }
   .row .by.ed { color:var(--edit); }
+  .card.editing { border-color:var(--edit); box-shadow:0 0 0 1px var(--edit); }
+  .form .sec { font-size:12px; color:var(--sub); font-weight:bold; margin:12px 0 2px; }
+  .erow { padding:6px 0; border-top:1px dashed var(--line); }
+  .erow .top { display:flex; gap:6px; align-items:center; }
+  .erow .top .f-name { flex:1; }
+  .erow .x, .erow .back { flex:none; font-size:13px; padding:6px 10px; border-radius:8px; border:1px solid var(--warn); background:var(--card); color:var(--warn); }
+  .erow .back { border-color:var(--edit); color:var(--edit); }
+  .erow.del .f-name { text-decoration:line-through; opacity:.55; }
+  .erow .grid { margin-top:4px; }
+  .erow .orig { margin:3px 0 0; }
+  .form .addrow { border:1px dashed var(--edit); background:none; color:var(--edit); font-size:14px; width:100%; padding:8px; border-radius:8px; margin-top:6px; }
   .row .pen { flex:none; border:1px solid var(--edit); background:var(--card); color:var(--edit); font-size:16px; width:34px; height:30px; padding:0; border-radius:8px; line-height:1; }
   .row.added .name::after { content:"追加"; font-size:10px; color:var(--edit); border:1px solid var(--edit); border-radius:4px; padding:0 3px; margin-left:5px; vertical-align:2px; }
   .empty { padding:8px 10px; border-top:1px solid var(--line); color:var(--warn); font-size:13px; }
@@ -127,10 +138,11 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 const ref = () => doc(db, "shokusaiBoards", boardId);
 let board = null, user = null;
-/** 手直し中の品目（{ id, prop }）。入力中に他の人の変更で画面が描き直されて消えないよう、その間は描き直しを待たせる */
-let editing = null, pending = false;
-/** 手直し中の邸（邸のID、追加なら "new"） */
-let editingProp = null;
+/**
+ * 編集中の邸の下書き。{ id（追加なら "new"）, p, prop:{物件の欄}, items:[木ごとの欄] }
+ * 入力中に他の人の変更で画面が描き直されて消えないよう、その間は描き直しを待たせる
+ */
+let draft = null, pending = false;
 
 const STAFF = /@archigarden\.net$/i;
 const canWrite = () => !!(user && user.email && STAFF.test(user.email));
@@ -145,7 +157,7 @@ if (!boardId) {
   onSnapshot(ref(), (snap) => {
     if (!snap.exists()) { $("meta").textContent = "このリンクのリストは見つかりません。"; return; }
     board = snap.data();
-    if (editing || editingProp) pending = true; else render();
+    if (draft) pending = true; else render();
   }, (e) => { $("meta").textContent = "読み込めませんでした：" + e.code; });
 }
 
@@ -177,7 +189,7 @@ $("hideDone").onchange = () => { try { localStorage.setItem("shokusai_hideDone",
 try { $("hideDone").checked = !!localStorage.getItem("shokusai_hideDone"); } catch {}
 $("sort").onchange = () => { try { localStorage.setItem("shokusai_sort", $("sort").value); } catch {} render(); };
 try { const v = localStorage.getItem("shokusai_sort"); if (v) $("sort").value = v; } catch {}
-$("addProp").onclick = () => { editingProp = "new"; editing = null; render(); window.scrollTo(0, 0); };
+$("addProp").onclick = () => { if (draft && !confirm("編集中の物件があります。保存せずに切り替えますか？")) return; startEdit(null); window.scrollTo(0, 0); };
 
 /** 「2026-11-20」→「11/20」 */
 const mdLabel = (s) => { const m = /^\d{4}-(\d{2})-(\d{2})$/.exec(s || ""); return m ? `${+m[1]}/${+m[2]}` : "未定"; };
@@ -189,6 +201,8 @@ function sortKeyOf(label, hint) {
   if (!hint) { const now = new Date(); if (Number(m[1]) < now.getMonth() + 1 - 3) y++; }
   return `${y}-${String(m[1]).padStart(2, "0")}-${String(m[2]).padStart(2, "0")}`;
 }
+/** 日付欄に入れられる形（日まで分かるもの）だけを返す */
+const dateOf = (k) => (/^\d{4}-\d{2}-(0[1-9]|[12]\d|3[01])$/.test(k || "") ? k : "");
 
 /** PC が作った邸に手直しを重ね、画面で追加した邸を足す */
 function propsOf() {
@@ -197,8 +211,9 @@ function propsOf() {
   for (const p of board.properties || []) {
     const e = props[p.id];
     const q = { ...p, prepSort: p.prepSort || sortKeyOf(p.prepLabel, p.workSort !== "9999-99-99" ? p.workSort : "") };
+    q.orig = { ...q };
     if (e && !e.deleted) {
-      Object.assign(q, { name: e.name || p.name, contractor: e.contractor ?? p.contractor, e, orig: p });
+      Object.assign(q, { name: e.name || p.name, contractor: e.contractor ?? p.contractor, e });
       if (e.work) Object.assign(q, { workLabel: mdLabel(e.work), workSort: e.work });
       if (e.prep) Object.assign(q, { prepLabel: mdLabel(e.prep), prepSort: e.prep });
     }
@@ -213,56 +228,11 @@ function propsOf() {
   return { shown, gone };
 }
 
-/** 邸の追加・手直しの入力欄。p が null なら追加 */
-function propForm(p) {
-  const f = el("div", "form");
-  const e = p?.e || {};
-  if (p && !p.added) f.append(el("div", "orig", `管理表では：${p.orig?.name || p.name}　施工 ${p.orig?.workLabel || p.workLabel}　準備 ${p.orig?.prepLabel || p.prepLabel}`));
-  const name = input("f-name", p?.name || "", "物件名（例：〇〇様邸）");
-  const work = input("", e.work || (p?.workSort && p.workSort !== "9999-99-99" ? p.workSort : ""), ""); work.type = "date";
-  const prep = input("", e.prep || (p?.prepSort && p.prepSort !== "9999-99-99" ? p.prepSort : ""), ""); prep.type = "date";
-  const con = input("", p?.contractor || "", "業者");
-  const grid = el("div", "grid two");
-  const conLab = lab("業者", con); conLab.className = "wide";
-  grid.append(lab("施工日", work), lab("準備希望日", prep), conLab);
-  f.append(name, grid);
-  const btns = el("div", "btns");
-  const ok = el("button", "save", p ? "保存" : "追加"); ok.type = "button";
-  const cancel = el("button", "", "やめる"); cancel.type = "button";
-  btns.append(ok, cancel);
-  const close = () => { editingProp = null; render(); };
-  cancel.onclick = close;
-  ok.onclick = async () => {
-    const v = { name: name.value.normalize("NFKC").trim().slice(0, 60), work: work.value, prep: prep.value || "", contractor: con.value.trim().slice(0, 30) };
-    if (!v.name) { alert("物件名を入れてください。"); name.focus(); return; }
-    ok.disabled = true;
-    const id = p ? p.id : "p" + Math.random().toString(36).slice(2, 12);
-    const r = await save({ ["props." + id]: { ...(p?.added ? e : {}), ...(p ? {} : { added: true }), ...v, deleted: false, ...stamp() } });
-    if (r) close(); else ok.disabled = false;
-  };
-  if (p) {
-    if (!p.added && p.e) {
-      const back = el("button", "", "元に戻す"); back.type = "button";
-      back.onclick = async () => { if (await save({ ["props." + p.id]: deleteField() })) close(); };
-      btns.append(back);
-    }
-    const del = el("button", "del", "物件を削除"); del.type = "button";
-    del.onclick = async () => {
-      if (!confirm(`「${p.name}」をリストから削除しますか？（下の「削除した物件」から戻せます）`)) return;
-      if (await save({ ["props." + p.id]: { ...e, name: p.name, deleted: true, ...stamp() } })) close();
-    };
-    btns.append(del);
-  }
-  f.append(btns);
-  if (!p) setTimeout(() => name.focus(), 0);
-  return f;
-}
-
 async function save(patch) {
   try { await updateDoc(ref(), patch); return true; }
-  catch (e) { alert("保存できませんでした：" + e.code); render(); return false; }
+  catch (e) { alert("保存できませんでした：" + e.code); return false; }
 }
-const setCheck = (id, done) => save({ ["checks." + id]: { done, ...stamp() } });
+const setCheck = (id, done) => save({ ["checks." + id]: { done, ...stamp() } }).then((ok) => ok || render());
 
 /** 数量と単位。以前のリストは「2本」のように1つの欄に入っているので分けて読む */
 function splitQty(it) {
@@ -279,6 +249,7 @@ function normHeight(v) {
   return s;
 }
 const fmtHeight = (h) => h || "指定なし";
+const qtyText = (o) => (o.qty ? o.qty + (o.unit || "") : "数量未確認");
 
 /** 邸ごとに、PC が作った品目に手直しを重ね、画面で追加した品目を足す */
 function itemsOf(p, edits) {
@@ -286,8 +257,8 @@ function itemsOf(p, edits) {
   for (const it of p.items || []) {
     const base = { ...it, ...splitQty(it) };
     const e = edits[it.id];
-    if (e?.deleted) { gone.push({ ...base, id: it.id, e }); continue; }
-    shown.push(e ? { ...base, name: e.name, height: e.height, qty: e.qty, unit: e.unit, id: it.id, orig: base, e } : { ...base, id: it.id });
+    if (e?.deleted) { gone.push({ ...base, id: it.id, e, orig: base }); continue; }
+    shown.push(e ? { ...base, name: e.name, height: e.height, qty: e.qty, unit: e.unit, id: it.id, orig: base, e } : { ...base, id: it.id, orig: base });
   }
   for (const [id, e] of Object.entries(edits)) {
     if (e?.prop !== p.id) continue;
@@ -295,6 +266,134 @@ function itemsOf(p, edits) {
     (e.deleted ? gone : shown).push(a);
   }
   return { shown, gone };
+}
+
+// ---- 編集（物件ごとに1つのボタンで、物件の情報とその邸の木をまとめて直す）----
+const hIn = (h) => (h && h !== "指定なし" ? String(h).replace(/^H/, "") : "");
+const newItem = () => ({ id: null, added: true, name: "", height: "", qty: "", unit: "本", deleted: false });
+function startEdit(p, shown, gone) {
+  draft = {
+    id: p ? p.id : "new", p,
+    prop: { name: p?.name || "", work: dateOf(p?.workSort), prep: dateOf(p?.prepSort), contractor: p?.contractor || "" },
+    items: p
+      ? [...shown, ...gone.map((g) => ({ ...g, gone: true }))].map((it) => ({
+          id: it.id, added: !!it.added, e: it.e, base: it.added ? null : it.orig,
+          name: it.name, height: hIn(it.height), qty: it.qty || "", unit: it.unit || "", deleted: !!it.gone }))
+      : [newItem()],
+  };
+  render();
+}
+const same = (a, b) => ["name", "height", "qty", "unit"].every((k) => String(a[k] ?? "") === String(b[k] ?? ""));
+const rnd = () => Math.random().toString(36).slice(2, 12);
+
+/** 下書きと今の中身を比べて、変わったところだけを1回で書き込む */
+async function saveDraft(btn) {
+  const d = draft, P = d.prop, st = stamp(), patch = {};
+  const pv = { name: P.name.normalize("NFKC").trim().slice(0, 60), work: P.work, prep: P.prep, contractor: P.contractor.trim().slice(0, 30) };
+  if (!pv.name) { alert("物件名を入れてください。"); return; }
+  const pid = d.id === "new" ? "p" + rnd() : d.id;
+  if (d.id === "new") patch["props." + pid] = { added: true, ...pv, deleted: false, ...st };
+  else {
+    const cur = { name: d.p.name, work: dateOf(d.p.workSort), prep: dateOf(d.p.prepSort), contractor: d.p.contractor || "" };
+    const changed = Object.keys(pv).some((k) => pv[k] !== cur[k]);
+    if (changed && d.p.added) patch["props." + pid] = { ...d.p.e, ...pv, deleted: false, ...st };
+    else if (changed) {
+      const o = d.p.orig;
+      const orig = { name: o.name, work: dateOf(o.workSort), prep: dateOf(o.prepSort), contractor: o.contractor || "" };
+      // 管理表どおりに戻したなら、手直しごと消す
+      patch["props." + pid] = Object.keys(pv).every((k) => pv[k] === orig[k]) ? deleteField() : { ...pv, deleted: false, ...st };
+    }
+  }
+  for (const it of d.items) {
+    const v = { name: it.name.normalize("NFKC").trim().slice(0, 60), height: normHeight(it.height).slice(0, 20),
+      qty: it.qty.normalize("NFKC").trim().slice(0, 10), unit: it.unit.normalize("NFKC").trim().slice(0, 10) };
+    if (it.added && !it.id) { if (v.name && !it.deleted) patch["edits.a" + rnd()] = { prop: pid, ...v, ...st }; continue; }
+    if (it.added) {
+      if (!v.name) v.name = it.e.name;
+      if (same(v, it.e) && !!it.e.deleted === it.deleted) continue;
+      patch["edits." + it.id] = { ...it.e, ...v, deleted: it.deleted, ...st };
+      continue;
+    }
+    const b = { name: it.base.name, height: it.base.height || "指定なし", qty: it.base.qty || "", unit: it.base.unit || "" };
+    if (!v.name) v.name = b.name;
+    // 依頼シートどおりに戻したなら、手直しごと消す
+    if (same(v, b) && !it.deleted) { if (it.e) patch["edits." + it.id] = deleteField(); continue; }
+    if (it.e && same(v, it.e) && !!it.e.deleted === it.deleted) continue;
+    patch["edits." + it.id] = { ...v, deleted: it.deleted, ...st };
+  }
+  if (!Object.keys(patch).length) { draft = null; render(); return; }
+  btn.disabled = true;
+  if (await save(patch)) { draft = null; render(); } else btn.disabled = false;
+}
+
+/** 編集中の邸の入力欄（物件の情報＋木の一覧） */
+function editForm() {
+  const d = draft;
+  const f = el("div", "form");
+  const bind = (inp, obj, key) => { inp.oninput = () => { obj[key] = inp.value; }; inp.onchange = inp.oninput; return inp; };
+  if (d.p && !d.p.added && d.p.e) {
+    const o = d.p.orig;
+    f.append(el("div", "orig", `管理表では：${o.name}　施工 ${o.workLabel}　準備 ${o.prepLabel}　${o.contractor || ""}`));
+  }
+  const name = bind(input("f-name", d.prop.name, "物件名（例：〇〇様邸）"), d.prop, "name");
+  const work = bind(input("", d.prop.work, ""), d.prop, "work"); work.type = "date";
+  const prep = bind(input("", d.prop.prep, ""), d.prop, "prep"); prep.type = "date";
+  const con = bind(input("", d.prop.contractor, "業者"), d.prop, "contractor");
+  const grid = el("div", "grid two");
+  const conLab = lab("業者", con); conLab.className = "wide";
+  grid.append(lab("施工日", work), lab("準備希望日", prep), conLab);
+  f.append(name, grid);
+
+  f.append(el("div", "sec", "植栽"));
+  d.items.forEach((it) => {
+    const r = el("div", "erow" + (it.deleted ? " del" : ""));
+    const top = el("div", "top");
+    const nm = bind(input("f-name", it.name, "樹種（例：アオダモ）"), it, "name");
+    nm.readOnly = it.deleted;
+    const x = el("button", it.deleted ? "back" : "x", it.deleted ? "戻す" : "削除"); x.type = "button";
+    x.onclick = () => {
+      if (it.added && !it.id) d.items.splice(d.items.indexOf(it), 1); else it.deleted = !it.deleted;
+      render();
+    };
+    top.append(nm, x);
+    r.append(top);
+    if (!it.deleted) {
+      const g = el("div", "grid");
+      const h = bind(input("", it.height, "2.5"), it, "height"); h.inputMode = "decimal";
+      const q = bind(input("", it.qty, "2"), it, "qty"); q.inputMode = "decimal";
+      const u = bind(input("", it.unit, "本"), it, "unit"); u.setAttribute("list", "units");
+      g.append(lab("高さ（m）", h), lab("数量", q), lab("単位", u));
+      r.append(g);
+    }
+    if (it.base) {
+      const b = it.base;
+      const cur = { name: it.name, height: normHeight(it.height), qty: it.qty, unit: it.unit };
+      if (it.deleted || !same(cur, { name: b.name, height: b.height || "指定なし", qty: b.qty || "", unit: b.unit || "" }))
+        r.append(el("div", "orig", `依頼シートでは：${b.name} ${fmtHeight(b.height)} ${qtyText(b)}`));
+    }
+    f.append(r);
+  });
+  const add = el("button", "addrow", "＋ 品目を追加"); add.type = "button";
+  add.onclick = () => { d.items.push(newItem()); render(); const all = document.querySelectorAll(".erow .f-name"); all[all.length - 1]?.focus(); };
+  f.append(add);
+
+  const btns = el("div", "btns");
+  const ok = el("button", "save", d.id === "new" ? "追加" : "保存"); ok.type = "button";
+  ok.onclick = () => saveDraft(ok);
+  const cancel = el("button", "", "やめる"); cancel.type = "button";
+  cancel.onclick = () => { draft = null; render(); };
+  btns.append(ok, cancel);
+  if (d.p) {
+    const del = el("button", "del", "物件を削除"); del.type = "button";
+    del.onclick = async () => {
+      if (!confirm(`「${d.p.name}」をリストから削除しますか？（一番下の「削除した物件」から戻せます）`)) return;
+      if (await save({ ["props." + d.p.id]: { ...(d.p.e || {}), name: d.p.name, deleted: true, ...stamp() } })) { draft = null; render(); }
+    };
+    btns.append(del);
+  }
+  f.append(btns);
+  if (d.id === "new" && !d.focused) { d.focused = true; setTimeout(() => name.focus(), 0); }
+  return f;
 }
 
 function render() {
@@ -307,13 +406,17 @@ function render() {
   $("refresh").textContent = building ? "更新中…" : "更新";
   $("guide").innerHTML = st.state === "error" ? `<span class="err">更新に失敗しました：${esc(st.message)}</span>`
     : !user ? "見るだけならこのままで大丈夫です。チェックや手直しをする人は「ログインしてチェック」から会社の Google アカウントでログインしてください。"
-    : canWrite() ? "選んだ木の□を押す。木の✎で樹種・高さ・数量・単位の修正や削除、邸の下の「＋品目を追加」で追加。物件は邸名の横の✎で修正・削除、上の「＋物件」で追加。手直しは「更新」しても消えません。"
+    : canWrite() ? "選んだ木の□を押す。物件名・日付・木の追加や修正・削除は、邸ごとの「✎ 編集」から。新しい物件は上の「＋物件」。手直しは「更新」しても消えません。"
     : '<span class="err">このアカウントではチェックを付けられません。会社のアカウント（@archigarden.net）でログインし直してください。</span>';
 
   $("addProp").style.display = canWrite() ? "" : "none";
   const checks = board.checks || {}, edits = board.edits || {};
   const list = $("list"); list.innerHTML = "";
-  if (editingProp === "new") { const c = el("div", "card"); c.append(propForm(null)); list.append(c); }
+  if (draft?.id === "new") {
+    const c = el("div", "card editing");
+    const ph = el("div", "ph"); ph.append(el("h2", "", "新しい物件"));
+    c.append(ph, editForm()); list.append(c);
+  }
   const { shown: propsShown, gone: propsGone } = propsOf();
   const rows = propsShown.map((p) => {
     const r = itemsOf(p, edits);
@@ -327,18 +430,19 @@ function render() {
     : by === "todo" ? (b.shown.length - b.doneN) - (a.shown.length - a.doneN) || cmp(a.p.prepSort, b.p.prepSort)
     : cmp(a.p.prepSort, b.p.prepSort) || cmp(a.p.workSort, b.p.workSort));
   for (const { p, shown, gone, doneN } of rows) {
+    const isEdit = draft?.id === p.id;
     const all = shown.length > 0 && doneN === shown.length;
-    if (all && $("hideDone").checked && editing?.prop !== p.id && editingProp !== p.id) continue;
-    const card = el("div", "card" + (all ? " alldone" : ""));
+    if (all && $("hideDone").checked && !isEdit) continue;
+    const card = el("div", "card" + (all && !isEdit ? " alldone" : "") + (isEdit ? " editing" : ""));
     const ph = el("div", "ph");
     const h2 = el("h2");
     const title = el("span", "", p.name);
     if (p.added) title.append(el("span", "addtag", "追加"));
     else if (p.e) title.append(el("span", "addtag", "修正"));
     const cnt = el("span", "cnt"); cnt.innerHTML = `選定済 <b>${doneN}/${shown.length}</b>`;
-    if (canWrite()) {
-      const pp = el("button", "ppen", "✎ 編集"); pp.type = "button"; pp.title = "物件を直す・削除";
-      pp.onclick = () => { editingProp = p.id; editing = null; render(); };
+    if (canWrite() && !isEdit) {
+      const pp = el("button", "ppen", "✎ 編集"); pp.type = "button";
+      pp.onclick = () => { if (draft && !confirm("編集中の物件があります。保存せずに切り替えますか？")) return; startEdit(p, shown, gone); };
       cnt.append(pp);
     }
     h2.append(title, cnt); ph.append(h2);
@@ -354,34 +458,10 @@ function render() {
     if (p.note) tags.append(el("span", "tag", p.note));
     if (tags.childNodes.length) ph.append(tags);
     card.append(ph);
-    if (editingProp === p.id) card.append(propForm(p));
-    if (!shown.length && !(editing?.prop === p.id && editing.id === null)) card.append(el("div", "empty", "植栽の内容が分かりません。依頼シートを確かめるか、「＋品目を追加」で入れてください。"));
-    for (const it of shown) {
-      if (editing?.id === it.id) { card.append(formRow(p, it)); continue; }
-      card.append(itemRow(it, checks[it.id] || {}));
-    }
-    if (editing?.prop === p.id && editing.id === null) card.append(formRow(p, null));
-    if (gone.length) {
-      const g = el("div", "gone");
-      g.append("削除した品目：");
-      gone.forEach((it, n) => {
-        if (n) g.append("、");
-        g.append(el("span", "", `${it.name} ${fmtHeight(it.height)}`));
-        if (canWrite()) {
-          const b = el("button", "lnk", "戻す"); b.type = "button";
-          b.onclick = () => save({ ["edits." + it.id]: { ...it.e, deleted: false, ...stamp() } });
-          g.append(" ", b);
-        }
-      });
-      card.append(g);
-    }
-    if (canWrite() && !(editing?.prop === p.id && editing.id === null)) {
-      const f = el("div", "foot");
-      const add = el("button", "", "＋ 品目を追加"); add.type = "button";
-      add.onclick = () => { editing = { prop: p.id, id: null }; render(); };
-      f.append(add);
-      card.append(f);
-    }
+    if (isEdit) { card.append(editForm()); list.append(card); continue; }
+    if (!shown.length) card.append(el("div", "empty", "植栽の内容が分かりません。依頼シートを確かめるか、「✎ 編集」から入れてください。"));
+    for (const it of shown) card.append(itemRow(it, checks[it.id] || {}));
+    if (gone.length) card.append(el("div", "gone", "削除した品目：" + gone.map((it) => `${it.name} ${fmtHeight(it.height)}`).join("、")));
     list.append(card);
   }
   if (propsGone.length) {
@@ -414,76 +494,10 @@ function itemRow(it, c) {
   body.append(line);
   if (it.form) body.append(el("div", "by", it.form));
   if (c.by && c.done) body.append(el("div", "by", `選定：${c.by}（${hhmm(c.atISO)}）`));
-  if (it.e && it.orig) {
-    const o = it.orig;
-    body.append(el("div", "by ed", `修正：${it.e.by}（${hhmm(it.e.atISO)}）　元 ${o.name} ${fmtHeight(o.height)} ${o.qty ? o.qty + (o.unit || "") : "数量未確認"}`));
-  } else if (it.added) {
-    body.append(el("div", "by ed", `追加：${it.e.by}（${hhmm(it.e.atISO)}）`));
-  }
+  if (it.e && !it.added) body.append(el("div", "by ed", `修正：${it.e.by}（${hhmm(it.e.atISO)}）　元 ${it.orig.name} ${fmtHeight(it.orig.height)} ${qtyText(it.orig)}`));
+  else if (it.added) body.append(el("div", "by ed", `追加：${it.e.by}（${hhmm(it.e.atISO)}）`));
   row.append(box, body);
-  if (canWrite()) {
-    const pen = el("button", "pen", "✎"); pen.type = "button"; pen.title = "直す・削除";
-    pen.onclick = () => { editing = { prop: null, id: it.id }; render(); };
-    row.append(pen);
-  }
   return row;
-}
-
-/** 手直し・追加の入力欄。it が null なら追加 */
-function formRow(p, it) {
-  const f = el("div", "form");
-  if (it?.orig || (it && !it.added && !it.e)) {
-    const o = it.orig || it;
-    f.append(el("div", "orig", `依頼シートでは：${o.name} ${fmtHeight(o.height)} ${o.qty ? o.qty + (o.unit || "") : "数量未確認"}`));
-  }
-  const name = input("f-name", it?.name || "", "樹種（例：アオダモ）");
-  const height = input("", it && it.height !== "指定なし" ? String(it.height || "").replace(/^H/, "") : "", "2.5");
-  height.inputMode = "decimal";
-  const qty = input("", it?.qty || "", "2"); qty.inputMode = "decimal";
-  const unit = input("", it ? (it.unit || "") : "本", "本"); unit.setAttribute("list", "units");
-  const grid = el("div", "grid");
-  grid.append(lab("高さ（m）", height), lab("数量", qty), lab("単位", unit));
-  f.append(name, grid);
-  const btns = el("div", "btns");
-  const ok = el("button", "save", it ? "保存" : "追加"); ok.type = "button";
-  const cancel = el("button", "", "やめる"); cancel.type = "button";
-  btns.append(ok, cancel);
-  const close = () => { editing = null; render(); };
-  cancel.onclick = close;
-  ok.onclick = async () => {
-    const v = {
-      name: name.value.normalize("NFKC").trim().slice(0, 60),
-      height: normHeight(height.value).slice(0, 20),
-      qty: qty.value.normalize("NFKC").trim().slice(0, 10),
-      unit: unit.value.normalize("NFKC").trim().slice(0, 10),
-    };
-    if (!v.name) { alert("樹種を入れてください。"); name.focus(); return; }
-    ok.disabled = true;
-    let done;
-    if (!it) done = await save({ ["edits.a" + Math.random().toString(36).slice(2, 12)]: { prop: p.id, ...v, ...stamp() } });
-    else if (it.added) done = await save({ ["edits." + it.id]: { ...it.e, ...v, ...stamp() } });
-    else done = await save({ ["edits." + it.id]: { ...v, deleted: false, ...stamp() } });
-    if (done) close(); else ok.disabled = false;
-  };
-  if (it) {
-    if (it.e && !it.added) {
-      const back = el("button", "", "元に戻す"); back.type = "button";
-      back.onclick = async () => { if (await save({ ["edits." + it.id]: deleteField() })) close(); };
-      btns.append(back);
-    }
-    const del = el("button", "del", "削除"); del.type = "button";
-    del.onclick = async () => {
-      if (!confirm(`「${it.name}」をリストから削除しますか？（あとで「戻す」で戻せます）`)) return;
-      const r = it.added
-        ? await save({ ["edits." + it.id]: { ...it.e, deleted: true, ...stamp() } })
-        : await save({ ["edits." + it.id]: { name: it.name, height: it.height, qty: it.qty, unit: it.unit || "", deleted: true, ...stamp() } });
-      if (r) close();
-    };
-    btns.append(del);
-  }
-  f.append(btns);
-  setTimeout(() => (it ? null : name).focus?.(), 0);
-  return f;
 }
 function input(cls, value, ph) { const i = document.createElement("input"); if (cls) i.className = cls; i.value = value; i.placeholder = ph; return i; }
 function lab(text, inp) { const l = el("label", "", text); l.append(inp); return l; }
