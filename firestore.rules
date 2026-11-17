@@ -122,6 +122,36 @@ service cloud.firestore {
       allow update, list, delete: if false;
     }
 
+    /**
+     * 西村マインド学習（mind/）。西村さんへの質問と、その答え。
+     *
+     * 中身は役員だけのもの（人の評価・会社の線引きに関わる質問がある）なので、
+     * 植栽チェックと違い**文書のIDを知っていても読めない**。読めるのは次の2つだけ。
+     *   ・PC（lw-report の西村マインド学習）の専用アカウント … 質問・まとめを書き、答えを読んで取り込んだら消す
+     *   ・西村さん本人（会社の Google でログイン）… 読む・answers（答え）だけ書く
+     * 人の指定は uid で行う（公開リポジトリにメールアドレスを書かないため）。
+     */
+    match /mindBoards/{boardId} {
+      function isMindPc() {
+        return request.auth != null && request.auth.uid == '9M3qau8KT9REqhlFV4B7DVTG7yE3';
+      }
+      function isOwner() {
+        return request.auth != null
+          && request.auth.token.firebase.sign_in_provider == 'google.com'
+          && request.auth.uid == 'BL0a8jFP4jTDnPVjVXRI0k0esr52';
+      }
+      function ownerEdit() {
+        let d = request.resource.data;
+        return d.diff(resource.data).affectedKeys().hasOnly(['answers'])
+          && d.answers is map && d.answers.size() <= 300;
+      }
+
+      allow get: if isMindPc() || isOwner();
+      allow create: if isMindPc();
+      allow update: if isMindPc() || (isOwner() && ownerEdit());
+      allow list, delete: if false;
+    }
+
     // ここに書いていないものは全部拒否
     match /{document=**} {
       allow read, write: if false;

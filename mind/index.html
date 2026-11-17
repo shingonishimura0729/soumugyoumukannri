@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<title>西村マインド学習</title>
+<style>
+  :root { --green: #556529; --dark: #3d4a1c; --pale: #f3f5ec; --line: #d9ddcf; --warm: #fff8e6; --gold: #e0b84c;
+          --red: #c0504d; --text: #222; --sub: #666; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #fafaf7; color: var(--text); line-height: 1.75; -webkit-text-size-adjust: 100%;
+         font-family: "Hiragino Sans", "Yu Gothic UI", "Meiryo", sans-serif; font-size: 17px; }
+  header { background: var(--green); color: #fff; padding: 14px 16px; }
+  header h1 { margin: 0; font-size: 19px; }
+  #label { font-size: 13px; opacity: .9; }
+  main { padding: 14px 16px 120px; max-width: 680px; margin: 0 auto; }
+  .box { background: var(--pale); border: 1px solid #c9d2ad; border-radius: 10px; padding: 12px 14px; font-size: 15px; }
+  h2 { font-size: 17px; color: var(--dark); border-left: 5px solid var(--green); padding-left: 10px; margin: 26px 0 12px; }
+  .q { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 14px; margin-bottom: 16px; }
+  .qhead { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+  .no { font-size: 24px; font-weight: 700; color: var(--green); }
+  .cat { font-size: 12px; background: #eee; border-radius: 6px; padding: 1px 8px; color: #555; }
+  .new { font-size: 12px; background: var(--red); color: #fff; border-radius: 6px; padding: 1px 8px; }
+  .question { font-weight: 700; font-size: 17px; }
+  .guess { margin-top: 8px; background: var(--warm); border-left: 4px solid var(--gold); padding: 6px 10px; font-size: 15px; }
+  details { margin-top: 6px; font-size: 13px; color: var(--sub); }
+  textarea { width: 100%; min-height: 72px; margin-top: 10px; padding: 10px; font-size: 16px; line-height: 1.6;
+             border: 1px solid #bbb; border-radius: 8px; font-family: inherit; resize: vertical; }
+  .row { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+  button { font: inherit; font-size: 15px; border-radius: 8px; padding: 8px 14px; border: 1px solid var(--green);
+           background: #fff; color: var(--green); }
+  button.primary { background: var(--green); color: #fff; }
+  button:disabled { opacity: .5; }
+  .sent { margin-top: 8px; font-size: 14px; color: #2e6b2e; background: #eef7ee; border-radius: 8px; padding: 6px 10px; }
+  .q.done { border-color: #9fc79f; }
+  ul { padding-left: 20px; margin: 0; }
+  li { margin-bottom: 8px; }
+  #bar { position: fixed; left: 0; right: 0; bottom: 0; background: #fff; border-top: 1px solid var(--line);
+         padding: 10px 16px calc(10px + env(safe-area-inset-bottom)); display: none; align-items: center; gap: 10px;
+         box-shadow: 0 -2px 8px rgba(0,0,0,.06); }
+  #bar span { flex: 1; font-size: 14px; }
+  #bar button { font-size: 16px; padding: 10px 18px; }
+  .err { color: var(--red); }
+  .center { text-align: center; margin-top: 40px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>西村マインド学習</h1>
+  <div id="label">読み込み中…</div>
+</header>
+<main>
+  <div id="login" class="center" hidden>
+    <p>会社の Google アカウントでログインしてください。</p>
+    <button id="loginBtn" class="primary">Google でログイン</button>
+    <p style="font-size:13px;color:#666">LINE WORKS の中で開いてログインできないときは、右上のメニューから「ブラウザで開く」を選んでください。</p>
+  </div>
+  <div id="msg"></div>
+  <div id="content" hidden>
+    <div class="box">
+      答えを入力して、画面の下の<b>「まとめて送信」</b>を押してください。推測が合っていれば<b>「合ってる」</b>を押すだけで大丈夫です。
+      送った答えは、次の回（月・水・金の朝）にルール集へ取り込みます。それまでは何度でも直せます。
+    </div>
+    <h2 id="qTitle">答えてほしい質問</h2>
+    <div id="questions"></div>
+    <div id="learnedWrap" hidden><h2>前回の答えから覚えたルール</h2><ul id="learned"></ul></div>
+    <div id="summaryWrap" hidden><h2>この期間のまとめ</h2><ul id="summary"></ul></div>
+    <p style="font-size:13px;color:#666;margin-top:30px">ログイン中：<span id="who"></span>　<a href="#" id="logout">ログアウト</a></p>
+  </div>
+</main>
+<div id="bar"><span id="barText"></span><button id="sendAll" class="primary">まとめて送信</button></div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
+import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-auth.js";
+import { getFirestore, doc, onSnapshot, updateDoc, FieldPath } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
+import { firebaseConfig } from "../assets/js/firebase-config.js";
+
+/*
+ * 中身（質問・答え）はこのファイルに一切書かない。ログインした本人だけが Firestore から読む。
+ * 守りは firestore.rules の mindBoards（本人とPCの専用アカウントしか読めない・本人は answers だけ書ける）。
+ */
+const $ = (id) => document.getElementById(id);
+const boardId = new URLSearchParams(location.search).get("b") || "";
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+let board = null, unsub = null;
+const drafts = {};  // 番号 → 入力中の文（送るまで）
+
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const md = (iso) => { if (!iso) return ""; const d = new Date(iso); return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`; };
+
+function render() {
+  const qs = board.questions || [], answers = board.answers || {};
+  $("label").textContent = board.label ? `${board.label}（${md(board.updatedAtISO)} 更新）` : "";
+  $("qTitle").textContent = `答えてほしい質問（${qs.length}件）`;
+  $("questions").innerHTML = qs.length ? qs.map((q) => {
+    const a = answers[q.no];
+    const val = drafts[q.no] ?? (a ? a.text : "");
+    return `<div class="q ${a ? "done" : ""}" data-no="${esc(q.no)}">
+      <div class="qhead"><span class="no">${esc(q.short)}</span><span class="cat">${esc(q.cat)}</span>${q.isNew ? '<span class="new">新</span>' : ""}</div>
+      <div class="question">${esc(q.q)}</div>
+      <div class="guess">推測：${esc(q.guess)}</div>
+      <details><summary>どの場面から出た質問か</summary>${esc(q.scene)}<br>${esc(q.quote)}</details>
+      <textarea placeholder="答えを入力（例：B。ただし造成は別）">${esc(val)}</textarea>
+      <div class="row"><button class="ok">合ってる</button></div>
+      ${a ? `<div class="sent">送信済み（${md(a.atISO)}）：${esc(a.text)}<br>次の回で取り込みます。直すときは書き換えて送信してください。</div>` : ""}
+    </div>`;
+  }).join("") : "<p>いま答えてほしい質問はありません。</p>";
+  for (const card of document.querySelectorAll(".q")) {
+    const no = card.dataset.no, ta = card.querySelector("textarea");
+    ta.addEventListener("input", () => { drafts[no] = ta.value; updateBar(); });
+    card.querySelector(".ok").addEventListener("click", () => { ta.value = "合ってる"; drafts[no] = ta.value; updateBar(); });
+  }
+  const learned = board.learned || [], summary = board.summary || [];
+  $("learnedWrap").hidden = !learned.length;
+  $("learned").innerHTML = learned.map((s) => `<li>${esc(s)}</li>`).join("");
+  $("summaryWrap").hidden = !summary.length;
+  $("summary").innerHTML = summary.map((s) => `<li>${esc(s)}</li>`).join("");
+  updateBar();
+}
+
+/** 送る分＝入力があって、送信済みと違うもの */
+function toSend() {
+  const answers = (board && board.answers) || {};
+  return Object.entries(drafts).filter(([no, t]) => t.trim() && (!answers[no] || answers[no].text !== t.trim()));
+}
+
+function updateBar() {
+  const n = toSend().length;
+  $("bar").style.display = n ? "flex" : "none";
+  $("barText").textContent = `入力した答え ${n}件`;
+}
+
+$("sendAll").addEventListener("click", async () => {
+  const items = toSend();
+  if (!items.length) return;
+  $("sendAll").disabled = true;
+  try {
+    const atISO = new Date().toISOString();
+    const args = [];
+    for (const [no, t] of items) args.push(new FieldPath("answers", no), { text: t.trim(), atISO });
+    await updateDoc(doc(db, "mindBoards", boardId), ...args);
+    for (const [no] of items) delete drafts[no];
+    $("msg").innerHTML = `<p class="box">${items.length}件を送信しました。ありがとうございます。</p>`;
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  } catch (e) {
+    $("msg").innerHTML = `<p class="err">送信できませんでした（${esc(e.code || e.message)}）。もう一度押してください。</p>`;
+  } finally {
+    $("sendAll").disabled = false;
+    updateBar();
+  }
+});
+
+$("loginBtn").addEventListener("click", async () => {
+  try { await signInWithPopup(auth, new GoogleAuthProvider()); }
+  catch (e) { if (e.code !== "auth/popup-closed-by-user") $("msg").innerHTML = `<p class="err">ログインできませんでした（${esc(e.code)}）</p>`; }
+});
+$("logout").addEventListener("click", (e) => { e.preventDefault(); signOut(auth); });
+
+onAuthStateChanged(auth, (user) => {
+  if (unsub) { unsub(); unsub = null; }
+  $("msg").innerHTML = "";
+  if (!boardId) { $("label").textContent = ""; $("msg").innerHTML = '<p class="err">リンクが正しくありません。Bot から届いたリンクをそのまま開いてください。</p>'; return; }
+  $("login").hidden = !!user;
+  $("content").hidden = true;
+  if (!user) { $("label").textContent = "ログインしてください"; return; }
+  $("who").textContent = user.email || "";
+  unsub = onSnapshot(doc(db, "mindBoards", boardId), (snap) => {
+    if (!snap.exists()) { $("label").textContent = ""; $("msg").innerHTML = "<p>まだ質問が届いていません。次の回（月・水・金の朝）をお待ちください。</p>"; return; }
+    board = snap.data();
+    $("content").hidden = false;
+    // 入力中は描き直さない（打っている文が消えないように）
+    if (document.activeElement && document.activeElement.tagName === "TEXTAREA") { updateBar(); return; }
+    render();
+  }, (e) => {
+    $("label").textContent = "";
+    $("msg").innerHTML = e.code === "permission-denied"
+      ? '<p class="err">このページは西村さん専用です。西村さんの会社の Google アカウントでログインしてください。</p>'
+      : `<p class="err">読み込めませんでした（${esc(e.code)}）</p>`;
+  });
+});
+</script>
+</body>
+</html>

@@ -22,7 +22,7 @@ import { describe, it } from "node:test";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 /** 画面として確かめるもの */
-const PAGES = ["renraku/index.html", "shokusai/index.html"];
+const PAGES = ["renraku/index.html", "shokusai/index.html", "mind/index.html"];
 
 /** ファイルが export している名前を集める */
 function exportsOf(file) {
