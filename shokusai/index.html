@@ -49,6 +49,13 @@
   .tbl td.nm { max-width:170px; overflow:hidden; text-overflow:ellipsis; }
   .tbl .nmbtn { display:block; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; border:none; background:none; padding:0; color:var(--edit); font-weight:bold; font-size:13px; text-align:left; text-decoration:underline; }
   .tbl td.dt { white-space:nowrap; }
+  /* 一覧表で直せるマス：点線の下線と鉛筆で「押せる」ことを示す */
+  .tbl td.ed { position:relative; cursor:pointer; }
+  .tbl td.ed::after { content:"✎"; font-size:10px; color:var(--edit); margin-left:4px; opacity:.7; }
+  .tbl td.ed > b, .tbl td.ed:not(.dt) { text-decoration:underline dotted var(--sand); text-underline-offset:3px; }
+  .tbl .dtin { position:absolute; inset:0; width:100%; height:100%; opacity:0; border:0; padding:0; margin:0; cursor:pointer; font-size:16px; }
+  .tbl .conin { font-size:16px; width:130px; padding:3px 6px; border:1px solid var(--accent); border-radius:6px; background:var(--card); color:var(--ink); }
+  .tblhint { font-size:11.5px; color:var(--sub); padding:5px 8px; border-bottom:1px solid var(--line); position:sticky; left:0; }
   .tbl td.dt small { margin-left:4px; color:var(--sub); font-size:11px; }
   .tbl td.dt.soon small { color:var(--warn); font-weight:bold; }
   .tbl td.dt.late { background:var(--warnbg) !important; }
@@ -318,7 +325,7 @@ let board = null, user = null;
  * 編集中の邸の下書き。{ id（追加なら "new"）, p, prop:{物件の欄}, items:[木ごとの欄] }
  * 入力中に他の人の変更で画面が描き直されて消えないよう、その間は描き直しを待たせる
  */
-let draft = null, pending = false;
+let draft = null, pending = false, inlineEdit = false; // inlineEdit＝一覧表のマスで業者名を入力中（その間は描き直さない）
 
 const STAFF = /@archigarden\.net$/i;
 const canWrite = () => !!(user && user.email && STAFF.test(user.email));
@@ -333,7 +340,7 @@ if (!boardId) {
   onSnapshot(ref(), (snap) => {
     if (!snap.exists()) { $("meta").textContent = "このリンクのリストは見つかりません。"; return; }
     board = snap.data();
-    if (draft) pending = true; else render();
+    if (draft || inlineEdit) pending = true; else render();
   }, (e) => { $("meta").textContent = "読み込めませんでした：" + e.code; });
 }
 
@@ -963,16 +970,45 @@ function buildTable(rows) {
     nameTd.append(a);
     if (p.added) nameTd.append(el("span", "addtag", "追加"));
     tr.append(nameTd);
-    const dateTd = (label, key, warnDays) => {
+    const dateTd = (label, key, warnDays, field) => {
       const td = el("td", "dt"); const n = daysFrom(key);
       td.className = "dt" + (n != null && n < 0 ? " late" : n != null && n <= warnDays ? " soon" : "");
       td.append(el("b", "", label + wd(key)));
       if (n != null) td.append(el("small", "", relText(n)));
+      // 押すと日付を選ぶ画面が出る（透明な日付欄をマスに重ねる）
+      if (canWrite()) {
+        td.classList.add("ed");
+        const inp = el("input", "dtin"); inp.type = "date"; inp.value = dateOf(key);
+        inp.setAttribute("aria-label", (field === "work" ? "施工日" : "準備日") + "を変える");
+        inp.onclick = () => { try { inp.showPicker(); } catch {} };
+        inp.onchange = () => { if (inp.value) quickProp(p, { [field]: inp.value }); };
+        td.append(inp); tip(td, (field === "work" ? "施工日" : "準備日") + "を変える", "押すと日付を選べます");
+      }
       return td;
     };
     // 携帯で横に動かさなくても分かるよう、日付と選定の進み具合を先に置く
-    tr.append(dateTd(p.prepLabel, p.prepSort, 2), dateTd(p.workLabel, p.workSort, 1), el("td", "num" + (all ? " ok" : ""), `${doneN}/${shown.length}`));
-    tr.append(el("td", "", honor(p.contractor)));
+    tr.append(dateTd(p.prepLabel, p.prepSort, 2, "prep"), dateTd(p.workLabel, p.workSort, 1, "work"), el("td", "num" + (all ? " ok" : ""), `${doneN}/${shown.length}`));
+    const conTd = el("td", "", honor(p.contractor));
+    if (canWrite()) {
+      conTd.classList.add("ed");
+      tip(conTd, "業者を変える", "押すと業者名を入力できます");
+      conTd.onclick = () => {
+        if (conTd.querySelector("input")) return;
+        inlineEdit = true;
+        const inp = el("input", "conin"); inp.value = p.contractor || ""; inp.placeholder = "業者名（様は不要）";
+        inp.setAttribute("list", "conList"); inp.enterKeyHint = "done";
+        let done = false;
+        const finish = (ok) => {
+          if (done) return; done = true; inlineEdit = false;
+          const v = inp.value.normalize("NFKC").trim().replace(/\s*様$/, "").slice(0, 30);
+          if (ok && v !== (p.contractor || "")) quickProp(p, { contractor: v }); else render();
+        };
+        inp.onkeydown = (e) => { if (e.key === "Enter") inp.blur(); if (e.key === "Escape") finish(false); };
+        inp.onblur = () => finish(true);
+        conTd.textContent = ""; conTd.append(inp); inp.focus();
+      };
+    }
+    tr.append(conTd);
     tr.append(el("td", "", p.delivery || ""), el("td", "", p.watanabe ? "手配" + p.watanabe : ""));
     const mapTd = el("td", "");
     if (p.address) {
@@ -993,7 +1029,35 @@ function buildTable(rows) {
     tb.append(tr);
   }
   t.append(tb); wrap.append(t);
+  // 業者名の入力候補（今いる業者）
+  const dl = el("datalist"); dl.id = "conList";
+  for (const c of [...new Set(rows.map((r) => r.p.contractor).filter(Boolean))]) { const o = el("option"); o.value = c; dl.append(o); }
+  wrap.append(dl);
+  if (canWrite()) wrap.prepend(el("div", "tblhint", "準備・施工・業者のマスを押すと、その場で直せます"));
   return wrap;
+}
+
+/**
+ * 一覧表のマスから、物件の日付・業者だけを直して保存する（編集ボタンの保存と同じ書き方）。
+ * 準備日が「施工日の前日」のまま（自動）なら、施工日を変えたとき準備日も一緒にずらす。
+ */
+async function quickProp(p, ch) {
+  const cur = { name: p.name, work: dateOf(p.workSort), prep: dateOf(p.prepSort), contractor: p.contractor || "",
+    address: p.address || "", drawUrl: p.drawUrl || "", drawFile: p.drawFile || null };
+  const pv = { ...cur, ...ch };
+  if ("work" in ch && (!cur.prep || cur.prep === dayBefore(cur.work))) pv.prep = dayBefore(pv.work);
+  if (!pv.prep) pv.prep = dayBefore(pv.work);
+  const eq = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+  if (Object.keys(pv).every((k) => eq(pv[k], cur[k]))) { render(); return; }
+  const st = stamp();
+  let val;
+  if (p.added) val = { ...p.e, ...pv, deleted: false, ...st };
+  else {
+    const o = p.orig;
+    const orig = { name: o.name, work: dateOf(o.workSort), prep: dateOf(o.prepSort), contractor: o.contractor || "", address: o.address || "", drawUrl: "", drawFile: null };
+    val = Object.keys(pv).every((k) => eq(pv[k], orig[k])) ? deleteField() : { ...pv, deleted: false, ...st };
+  }
+  if (!(await save({ ["props." + p.id]: val }))) render();
 }
 
 /**
