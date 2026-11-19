@@ -50,6 +50,7 @@
   .tbl .nmbtn { display:block; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; border:none; background:none; padding:0; color:var(--edit); font-weight:bold; font-size:13px; text-align:left; text-decoration:underline; }
   .tbl td.dt { white-space:nowrap; }
   .tbl td.sub { color:var(--sub); }
+  .form .mitei { align-self:flex-start; margin-top:2px; font-size:11.5px; padding:2px 8px; border-radius:6px; border:1px solid var(--line); background:var(--card); color:var(--sub); }
   .form .dvsel { width:100%; font-size:16px; padding:6px 8px; min-height:36px; border-radius:8px; border:1px solid var(--line); background:var(--card); color:var(--ink); }
   /* 一覧表で直せるマス：点線の下線と鉛筆で「押せる」ことを示す */
   .tbl td.ed { position:relative; cursor:pointer; }
@@ -457,6 +458,10 @@ fselSync();
 $("addProp").onclick = () => { if (draft && !confirm("編集中の物件があります。保存せずに切り替えますか？")) return; startEdit(null); window.scrollTo(0, 0); };
 
 /** 「2026-11-20」→「11/20」 */
+/** 日付を消した（未定にした）ことを残す印。空のままだと「手直しなし」と区別できないため */
+const MITEI = "未定";
+/** 今の日付：日付があればそれ、手直しで未定にしてあれば「未定」、どちらでもなければ空 */
+const curDate = (p, k) => (p ? dateOf(p[k + "Sort"]) || (p.e?.[k] === MITEI ? MITEI : "") : "");
 const mdLabel = (s) => { const m = /^\d{4}-(\d{2})-(\d{2})$/.exec(s || ""); return m ? `${+m[1]}/${+m[2]}` : "未定"; };
 /** 「11/20」→ 並び替え用の「YYYY-MM-DD」（年は施工日から推す。無ければ今年か来年の近い方） */
 function sortKeyOf(label, hint) {
@@ -481,15 +486,17 @@ function propsOf() {
     q.orig = { ...q };
     if (e && !e.deleted) {
       Object.assign(q, { name: e.name || p.name, contractor: e.contractor ?? p.contractor, delivery: e.delivery ?? p.delivery, address: e.address ?? q.address, drawUrl: e.drawUrl || "", drawFile: e.drawFile || null, e });
-      if (e.work) Object.assign(q, { workLabel: mdLabel(e.work), workSort: e.work });
-      if (e.prep) Object.assign(q, { prepLabel: mdLabel(e.prep), prepSort: e.prep });
+      if (e.work === MITEI) Object.assign(q, { workLabel: MITEI, workSort: "9999-99-99" });
+      else if (e.work) Object.assign(q, { workLabel: mdLabel(e.work), workSort: e.work });
+      if (e.prep === MITEI) Object.assign(q, { prepLabel: MITEI, prepSort: "9999-99-99" });
+      else if (e.prep) Object.assign(q, { prepLabel: mdLabel(e.prep), prepSort: e.prep });
     }
     (e?.deleted ? gone : shown).push(e?.deleted ? { ...q, e } : q);
   }
   for (const [id, e] of Object.entries(props)) {
     if (!e?.added) continue;
     const q = { id, name: e.name, contractor: e.contractor || "", delivery: e.delivery || "", address: e.address || "", drawUrl: e.drawUrl || "", drawFile: e.drawFile || null, items: [], source: "画面", folderFound: true, added: true, e,
-      workLabel: mdLabel(e.work), workSort: e.work || "9999-99-99", prepLabel: mdLabel(e.prep), prepSort: e.prep || e.work || "9999-99-99" };
+      workLabel: mdLabel(e.work), workSort: dateOf(e.work) || "9999-99-99", prepLabel: mdLabel(e.prep), prepSort: dateOf(e.prep) || dateOf(e.work) || "9999-99-99" };
     (e.deleted ? gone : shown).push(q);
   }
   return { shown, gone };
@@ -562,7 +569,11 @@ const rnd = () => Math.random().toString(36).slice(2, 12);
 async function saveDraft(btn) {
   const d = draft, P = d.prop, st = stamp(), patch = {};
   if (d.uploading) { alert("図面のPDFを保存しています。終わってから押してください。"); return; }
-  const pv = { name: P.name.normalize("NFKC").trim().slice(0, 60), work: P.work, prep: P.prep || dayBefore(P.work), contractor: P.contractor.trim().slice(0, 30), delivery: deliv(P.delivery),
+  const cw = curDate(d.p, "work"), cp = curDate(d.p, "prep");
+  // 日付を消したら「未定」として残す（もともと日付が無かった物件は空のまま）
+  const pWork = P.work || (d.workMitei || cw ? MITEI : "");
+  const pPrep = P.prep || (d.prepMitei ? MITEI : dayBefore(P.work) || (pWork === MITEI || cp ? MITEI : ""));
+  const pv = { name: P.name.normalize("NFKC").trim().slice(0, 60), work: pWork, prep: pPrep, contractor: P.contractor.trim().slice(0, 30), delivery: deliv(P.delivery),
     address: P.address.normalize("NFKC").trim().slice(0, 500), drawUrl: P.drawUrl.trim().slice(0, 500), drawFile: P.drawFile || null };
   if (!pv.name) { alert("物件名を入れてください。"); return; }
   if (/^http:\/\//i.test(pv.address)) { alert("住所のリンクは https:// で始まるものを貼ってください。"); return; }
@@ -571,7 +582,7 @@ async function saveDraft(btn) {
   const eq = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
   if (d.id === "new") patch["props." + pid] = { added: true, ...pv, deleted: false, ...st };
   else {
-    const cur = { name: d.p.name, work: dateOf(d.p.workSort), prep: dateOf(d.p.prepSort), contractor: d.p.contractor || "", delivery: deliv(d.p.delivery),
+    const cur = { name: d.p.name, work: cw, prep: cp, contractor: d.p.contractor || "", delivery: deliv(d.p.delivery),
       address: d.p.address || "", drawUrl: d.p.drawUrl || "", drawFile: d.p.drawFile || null };
     const changed = Object.keys(pv).some((k) => !eq(pv[k], cur[k]));
     if (changed && d.p.added) patch["props." + pid] = { ...d.p.e, ...pv, deleted: false, ...st };
@@ -686,24 +697,28 @@ function editForm() {
   const work = bind(input("", d.prop.work, ""), d.prop, "work"); work.type = "date";
   const prep = bind(input("", d.prop.prep, ""), d.prop, "prep"); prep.type = "date";
   // 準備希望日は、基本は施工日の前日を自動で入れる。手で変えたら、その日付を優先する
-  if (d.prepAuto == null) d.prepAuto = !d.prop.prep || d.prop.prep === dayBefore(d.prop.work);
+  if (d.prepAuto == null) {
+    d.workMitei = curDate(d.p, "work") === MITEI; d.prepMitei = curDate(d.p, "prep") === MITEI;
+    d.prepAuto = d.prepMitei ? d.workMitei : !d.prop.prep || d.prop.prep === dayBefore(d.prop.work);
+  }
   const hint = el("div", "hint");
   const showHint = () => {
     hint.innerHTML = "";
-    if (d.prepAuto) hint.append("自動：施工日の前日");
+    if (d.prepMitei && !d.prop.prep) hint.append("未定");
+    else if (d.prepAuto) hint.append("自動：施工日の前日");
     else {
       hint.append("手入力");
       const b = el("button", "", "前日に戻す"); b.type = "button";
-      b.onclick = () => { d.prepAuto = true; d.prop.prep = prep.value = dayBefore(d.prop.work); showHint(); };
+      b.onclick = () => { d.prepAuto = true; d.prepMitei = false; d.prop.prep = prep.value = dayBefore(d.prop.work); showHint(); };
       hint.append(b);
     }
   };
   work.oninput = work.onchange = () => {
-    d.prop.work = work.value;
-    if (d.prepAuto) d.prop.prep = prep.value = dayBefore(work.value);
+    d.prop.work = work.value; if (work.value) d.workMitei = false;
+    if (d.prepAuto) { d.prop.prep = prep.value = dayBefore(work.value); d.prepMitei = !work.value && d.workMitei; showHint(); }
   };
   prep.oninput = prep.onchange = () => {
-    d.prop.prep = prep.value;
+    d.prop.prep = prep.value; if (prep.value) d.prepMitei = false;
     d.prepAuto = !prep.value || prep.value === dayBefore(d.prop.work);
     showHint();
   };
@@ -715,7 +730,17 @@ function editForm() {
   for (const [v, t] of [["", "なし"], ["有", "あり"]]) { const o = el("option", "", t); o.value = v; dv.append(o); }
   dv.value = d.prop.delivery; dv.onchange = () => { d.prop.delivery = dv.value; };
   const prepLab = lab("準備希望日", prep); prepLab.append(hint);
-  grid.append(lab("施工日", work), prepLab, conLab, lab("配送", dv));
+  const miteiBtn = (which) => {
+    const b = el("button", "mitei", "未定にする"); b.type = "button";
+    b.onclick = (ev) => {
+      ev.preventDefault();
+      if (which === "work") { d.prop.work = work.value = ""; d.workMitei = true; if (d.prepAuto) { d.prop.prep = prep.value = ""; d.prepMitei = true; } showHint(); }
+      else { d.prop.prep = prep.value = ""; d.prepMitei = true; d.prepAuto = false; showHint(); }
+    };
+    return b;
+  };
+  const workLab = lab("施工日", work); workLab.append(miteiBtn("work")); prepLab.append(miteiBtn("prep"));
+  grid.append(workLab, prepLab, conLab, lab("配送", dv));
   // 住所と外構図面（リンクを貼る、または PDF を置く）
   // 住所は、基本は Google マップの共有リンクを貼る（住所の文字を打ってもよい）
   const addr = bind(input("", d.prop.address, "Googleマップの共有リンクを貼る（住所の文字でも可）"), d.prop, "address");
@@ -988,7 +1013,7 @@ function buildTable(rows) {
         const inp = el("input", "dtin"); inp.type = "date"; inp.value = dateOf(key);
         inp.setAttribute("aria-label", (field === "work" ? "施工日" : "準備日") + "を変える");
         inp.onclick = () => { try { inp.showPicker(); } catch {} };
-        inp.onchange = () => { if (inp.value) quickProp(p, { [field]: inp.value }); };
+        inp.onchange = () => quickProp(p, { [field]: inp.value });
         td.append(inp); tip(td, (field === "work" ? "施工日" : "準備日") + "を変える", "押すと日付を選べます");
       }
       return td;
@@ -1058,11 +1083,12 @@ function buildTable(rows) {
  * 準備日が「施工日の前日」のまま（自動）なら、施工日を変えたとき準備日も一緒にずらす。
  */
 async function quickProp(p, ch) {
-  const cur = { name: p.name, work: dateOf(p.workSort), prep: dateOf(p.prepSort), contractor: p.contractor || "", delivery: deliv(p.delivery),
+  const cur = { name: p.name, work: curDate(p, "work"), prep: curDate(p, "prep"), contractor: p.contractor || "", delivery: deliv(p.delivery),
     address: p.address || "", drawUrl: p.drawUrl || "", drawFile: p.drawFile || null };
+  for (const k of ["work", "prep"]) if (k in ch && !ch[k]) ch[k] = MITEI; // 日付を消したら未定
   const pv = { ...cur, ...ch };
-  if ("work" in ch && (!cur.prep || cur.prep === dayBefore(cur.work))) pv.prep = dayBefore(pv.work);
-  if (!pv.prep) pv.prep = dayBefore(pv.work);
+  if ("work" in ch && (!cur.prep || cur.prep === MITEI || cur.prep === dayBefore(cur.work))) pv.prep = dayBefore(pv.work) || MITEI;
+  if (!pv.prep) pv.prep = dayBefore(pv.work) || (pv.work === MITEI ? MITEI : "");
   const eq = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
   if (Object.keys(pv).every((k) => eq(pv[k], cur[k]))) { render(); return; }
   const st = stamp();
