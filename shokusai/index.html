@@ -49,6 +49,8 @@
   .tbl td.nm { max-width:170px; overflow:hidden; text-overflow:ellipsis; }
   .tbl .nmbtn { display:block; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; border:none; background:none; padding:0; color:var(--edit); font-weight:bold; font-size:13px; text-align:left; text-decoration:underline; }
   .tbl td.dt { white-space:nowrap; }
+  .tbl td.sub { color:var(--sub); }
+  .form .dvsel { width:100%; font-size:16px; padding:6px 8px; min-height:36px; border-radius:8px; border:1px solid var(--line); background:var(--card); color:var(--ink); }
   /* 一覧表で直せるマス：点線の下線と鉛筆で「押せる」ことを示す */
   .tbl td.ed { position:relative; cursor:pointer; }
   .tbl td.ed::after { content:"✎"; font-size:10px; color:var(--edit); margin-left:4px; opacity:.7; }
@@ -400,6 +402,8 @@ const daysFrom = (k) => (dateOf(k) ? Math.round((keyToDate(k) - keyToDate(todayK
 const WD = "日月火水木金土";
 const wd = (k) => (dateOf(k) ? `(${WD[keyToDate(k).getDay()]})` : "");
 /** 「YYYY-MM-DD」の前日 */
+/** 配送：管理表の「有」だけを「あり」とみなし、それ以外（空・無）は「なし」＝空にそろえる */
+const deliv = (v) => (String(v || "").trim() === "有" ? "有" : "");
 const dayBefore = (k) => { if (!dateOf(k)) return ""; const d = keyToDate(k); d.setDate(d.getDate() - 1); return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`; };
 function relText(n) {
   if (n == null) return "";
@@ -476,7 +480,7 @@ function propsOf() {
     q.address = p.mapUrl || "";
     q.orig = { ...q };
     if (e && !e.deleted) {
-      Object.assign(q, { name: e.name || p.name, contractor: e.contractor ?? p.contractor, address: e.address ?? q.address, drawUrl: e.drawUrl || "", drawFile: e.drawFile || null, e });
+      Object.assign(q, { name: e.name || p.name, contractor: e.contractor ?? p.contractor, delivery: e.delivery ?? p.delivery, address: e.address ?? q.address, drawUrl: e.drawUrl || "", drawFile: e.drawFile || null, e });
       if (e.work) Object.assign(q, { workLabel: mdLabel(e.work), workSort: e.work });
       if (e.prep) Object.assign(q, { prepLabel: mdLabel(e.prep), prepSort: e.prep });
     }
@@ -484,7 +488,7 @@ function propsOf() {
   }
   for (const [id, e] of Object.entries(props)) {
     if (!e?.added) continue;
-    const q = { id, name: e.name, contractor: e.contractor || "", address: e.address || "", drawUrl: e.drawUrl || "", drawFile: e.drawFile || null, items: [], source: "画面", folderFound: true, added: true, e,
+    const q = { id, name: e.name, contractor: e.contractor || "", delivery: e.delivery || "", address: e.address || "", drawUrl: e.drawUrl || "", drawFile: e.drawFile || null, items: [], source: "画面", folderFound: true, added: true, e,
       workLabel: mdLabel(e.work), workSort: e.work || "9999-99-99", prepLabel: mdLabel(e.prep), prepSort: e.prep || e.work || "9999-99-99" };
     (e.deleted ? gone : shown).push(q);
   }
@@ -539,7 +543,7 @@ const newItem = () => ({ id: null, added: true, name: "", height: "", qty: "", u
 function startEdit(p, shown, gone) {
   draft = {
     id: p ? p.id : "new", p,
-    prop: { name: p?.name || "", work: dateOf(p?.workSort), prep: dateOf(p?.prepSort), contractor: p?.contractor || "",
+    prop: { name: p?.name || "", work: dateOf(p?.workSort), prep: dateOf(p?.prepSort), contractor: p?.contractor || "", delivery: deliv(p?.delivery),
       address: p?.address || "", drawUrl: p?.drawUrl || "", drawFile: p?.drawFile || null },
     items: p
       ? [...shown, ...gone.map((g) => ({ ...g, gone: true }))].map((it) => ({
@@ -558,7 +562,7 @@ const rnd = () => Math.random().toString(36).slice(2, 12);
 async function saveDraft(btn) {
   const d = draft, P = d.prop, st = stamp(), patch = {};
   if (d.uploading) { alert("図面のPDFを保存しています。終わってから押してください。"); return; }
-  const pv = { name: P.name.normalize("NFKC").trim().slice(0, 60), work: P.work, prep: P.prep || dayBefore(P.work), contractor: P.contractor.trim().slice(0, 30),
+  const pv = { name: P.name.normalize("NFKC").trim().slice(0, 60), work: P.work, prep: P.prep || dayBefore(P.work), contractor: P.contractor.trim().slice(0, 30), delivery: deliv(P.delivery),
     address: P.address.normalize("NFKC").trim().slice(0, 500), drawUrl: P.drawUrl.trim().slice(0, 500), drawFile: P.drawFile || null };
   if (!pv.name) { alert("物件名を入れてください。"); return; }
   if (/^http:\/\//i.test(pv.address)) { alert("住所のリンクは https:// で始まるものを貼ってください。"); return; }
@@ -567,13 +571,13 @@ async function saveDraft(btn) {
   const eq = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
   if (d.id === "new") patch["props." + pid] = { added: true, ...pv, deleted: false, ...st };
   else {
-    const cur = { name: d.p.name, work: dateOf(d.p.workSort), prep: dateOf(d.p.prepSort), contractor: d.p.contractor || "",
+    const cur = { name: d.p.name, work: dateOf(d.p.workSort), prep: dateOf(d.p.prepSort), contractor: d.p.contractor || "", delivery: deliv(d.p.delivery),
       address: d.p.address || "", drawUrl: d.p.drawUrl || "", drawFile: d.p.drawFile || null };
     const changed = Object.keys(pv).some((k) => !eq(pv[k], cur[k]));
     if (changed && d.p.added) patch["props." + pid] = { ...d.p.e, ...pv, deleted: false, ...st };
     else if (changed) {
       const o = d.p.orig;
-      const orig = { name: o.name, work: dateOf(o.workSort), prep: dateOf(o.prepSort), contractor: o.contractor || "", address: o.address || "", drawUrl: "", drawFile: null };
+      const orig = { name: o.name, work: dateOf(o.workSort), prep: dateOf(o.prepSort), contractor: o.contractor || "", delivery: deliv(o.delivery), address: o.address || "", drawUrl: "", drawFile: null };
       // 管理表どおりに戻したなら、手直しごと消す
       patch["props." + pid] = Object.keys(pv).every((k) => eq(pv[k], orig[k])) ? deleteField() : { ...pv, deleted: false, ...st };
     }
@@ -706,9 +710,12 @@ function editForm() {
   showHint();
   const con = bind(input("", d.prop.contractor, "業者"), d.prop, "contractor");
   const grid = el("div", "grid two");
-  const conLab = lab("業者", con); conLab.className = "wide";
+  const conLab = lab("業者", con);
+  const dv = el("select", "dvsel");
+  for (const [v, t] of [["", "なし"], ["有", "あり"]]) { const o = el("option", "", t); o.value = v; dv.append(o); }
+  dv.value = d.prop.delivery; dv.onchange = () => { d.prop.delivery = dv.value; };
   const prepLab = lab("準備希望日", prep); prepLab.append(hint);
-  grid.append(lab("施工日", work), prepLab, conLab);
+  grid.append(lab("施工日", work), prepLab, conLab, lab("配送", dv));
   // 住所と外構図面（リンクを貼る、または PDF を置く）
   // 住所は、基本は Google マップの共有リンクを貼る（住所の文字を打ってもよい）
   const addr = bind(input("", d.prop.address, "Googleマップの共有リンクを貼る（住所の文字でも可）"), d.prop, "address");
@@ -1009,7 +1016,16 @@ function buildTable(rows) {
       };
     }
     tr.append(conTd);
-    tr.append(el("td", "", p.delivery || ""), el("td", "", p.watanabe ? "手配" + p.watanabe : ""));
+    const dvTd = el("td", "", deliv(p.delivery) ? "あり" : "なし");
+    if (!deliv(p.delivery)) dvTd.classList.add("sub");
+    if (canWrite()) {
+      dvTd.classList.add("ed");
+      const sel = el("select", "dtin"); sel.setAttribute("aria-label", "配送のあり・なしを変える");
+      for (const [v, t] of [["有", "配送あり"], ["", "配送なし"]]) { const o = el("option", "", t); o.value = v; sel.append(o); }
+      sel.value = deliv(p.delivery); sel.onchange = () => quickProp(p, { delivery: sel.value });
+      dvTd.append(sel); tip(dvTd, "配送を変える", "押すと あり／なし を選べます");
+    }
+    tr.append(dvTd, el("td", "", p.watanabe ? "手配" + p.watanabe : ""));
     const mapTd = el("td", "");
     if (p.address) {
       const isLink = /^https:\/\//i.test(p.address);
@@ -1033,7 +1049,7 @@ function buildTable(rows) {
   const dl = el("datalist"); dl.id = "conList";
   for (const c of [...new Set(rows.map((r) => r.p.contractor).filter(Boolean))]) { const o = el("option"); o.value = c; dl.append(o); }
   wrap.append(dl);
-  if (canWrite()) wrap.prepend(el("div", "tblhint", "準備・施工・業者のマスを押すと、その場で直せます"));
+  if (canWrite()) wrap.prepend(el("div", "tblhint", "準備・施工・業者・配送のマスを押すと、その場で直せます"));
   return wrap;
 }
 
@@ -1042,7 +1058,7 @@ function buildTable(rows) {
  * 準備日が「施工日の前日」のまま（自動）なら、施工日を変えたとき準備日も一緒にずらす。
  */
 async function quickProp(p, ch) {
-  const cur = { name: p.name, work: dateOf(p.workSort), prep: dateOf(p.prepSort), contractor: p.contractor || "",
+  const cur = { name: p.name, work: dateOf(p.workSort), prep: dateOf(p.prepSort), contractor: p.contractor || "", delivery: deliv(p.delivery),
     address: p.address || "", drawUrl: p.drawUrl || "", drawFile: p.drawFile || null };
   const pv = { ...cur, ...ch };
   if ("work" in ch && (!cur.prep || cur.prep === dayBefore(cur.work))) pv.prep = dayBefore(pv.work);
@@ -1054,7 +1070,7 @@ async function quickProp(p, ch) {
   if (p.added) val = { ...p.e, ...pv, deleted: false, ...st };
   else {
     const o = p.orig;
-    const orig = { name: o.name, work: dateOf(o.workSort), prep: dateOf(o.prepSort), contractor: o.contractor || "", address: o.address || "", drawUrl: "", drawFile: null };
+    const orig = { name: o.name, work: dateOf(o.workSort), prep: dateOf(o.prepSort), contractor: o.contractor || "", delivery: deliv(o.delivery), address: o.address || "", drawUrl: "", drawFile: null };
     val = Object.keys(pv).every((k) => eq(pv[k], orig[k])) ? deleteField() : { ...pv, deleted: false, ...st };
   }
   if (!(await save({ ["props." + p.id]: val }))) render();
