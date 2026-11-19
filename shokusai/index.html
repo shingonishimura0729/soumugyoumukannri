@@ -305,8 +305,9 @@
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
 import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-auth.js";
-import { getFirestore, doc, onSnapshot, updateDoc, deleteField, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
+import { getFirestore, doc, onSnapshot, updateDoc, deleteField, setDoc } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
 import { firebaseConfig } from "../assets/js/firebase-config.js";
+import { openPdf, prefetchPdf } from "./pdf.js";
 
 /*
  * 植栽の選定チェック。
@@ -636,24 +637,6 @@ async function uploadPdf(file, onProgress) {
   }
   return { id, of, name: file.name.slice(0, 80), size: buf.length };
 }
-async function openFile(f, btn) {
-  // 先に窓を開けておく（読み込みの後に開くと、携帯ではポップアップとして止められるため）
-  const w = window.open("", "_blank");
-  const label = btn.textContent; btn.textContent = "📄 読み込み中…"; btn.disabled = true;
-  try {
-    const parts = [];
-    for (let n = 0; n < f.of; n++) {
-      const s = await getDoc(doc(db, "shokusaiFiles", `${f.id}_${n}`));
-      if (!s.exists()) throw new Error("図面の一部が見つかりません");
-      const bin = atob(s.data().b64); const u = new Uint8Array(bin.length);
-      for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
-      parts.push(u);
-    }
-    const url = URL.createObjectURL(new Blob(parts, { type: "application/pdf" }));
-    if (w) w.location.href = url; else location.href = url;
-  } catch (e) { w?.close(); alert("図面を開けませんでした：" + (e.message || e)); }
-  finally { btn.textContent = label; btn.disabled = false; }
-}
 /** PDF を置く枠（ドラッグ＆ドロップ、または押して選ぶ） */
 function dropZone(d) {
   const z = el("div", "drop");
@@ -904,7 +887,7 @@ function render() {
       }
       if (p.drawFile) {
         const b = el("button", "draw", "📄 外構図面（PDF）"); b.type = "button";
-        b.onclick = () => openFile(p.drawFile, b);
+        b.onclick = () => openPdf(p.drawFile, b); prefetchPdf(b, p.drawFile);
         tip(b, "外構図面を開く（PDF）", `${p.drawFile.name}（${(p.drawFile.size / 1048576).toFixed(1)}MB）`);
         info.append(b);
       }
@@ -1072,7 +1055,7 @@ function buildTable(rows) {
     tr.append(mapTd);
     const drawTd = el("td", "");
     if (/^https:\/\//i.test(p.drawUrl || "")) { const d = el("a", "", "📄リンク"); d.href = p.drawUrl; d.target = "_blank"; d.rel = "noopener noreferrer"; tip(d, "外構図面を開く（リンク）", p.drawUrl); drawTd.append(d); }
-    if (p.drawFile) { const b = el("button", "lnk", "📄PDF"); b.type = "button"; b.onclick = () => openFile(p.drawFile, b); tip(b, "外構図面を開く（PDF）", p.drawFile.name); drawTd.append(b); }
+    if (p.drawFile) { const b = el("button", "lnk", "📄PDF"); b.type = "button"; b.onclick = () => openPdf(p.drawFile, b); prefetchPdf(b, p.drawFile); tip(b, "外構図面を開く（PDF）", p.drawFile.name); drawTd.append(b); }
     const nt = el("td", "nt", p.note || ""); if (p.note) nt.title = p.note;
     tr.append(drawTd, nt);
     tb.append(tr);

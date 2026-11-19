@@ -114,7 +114,7 @@ describe("公開リポジトリとしての約束", () => {
    * このリポジトリは公開なので、秘密を書いた時点で世界中から読める。
    * 置き忘れやすいものを機械で見張る。
    */
-  const FILES = [...PAGES, "index.html", "renraku/water.html", "assets/js/domain.js", "shokusai/browser.html", "shokusai/share.html"];
+  const FILES = [...PAGES, "index.html", "renraku/water.html", "assets/js/domain.js", "shokusai/browser.html", "shokusai/share.html", "shokusai/pdf.js"];
 
   it("鍵やトークンらしきものをコードに書いていない", () => {
     for (const file of FILES) {

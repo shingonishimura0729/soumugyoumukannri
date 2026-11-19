@@ -50,8 +50,9 @@
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
-import { getFirestore, doc, onSnapshot, getDoc } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
+import { getFirestore, doc, onSnapshot } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
 import { firebaseConfig } from "../assets/js/firebase-config.js";
+import { openPdf, prefetchPdf } from "./pdf.js";
 
 const $ = (id) => document.getElementById(id);
 const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
@@ -111,31 +112,13 @@ function render(d) {
     tr.append(mapTd);
     const dTd = el("td");
     if (/^https:\/\//i.test(r.drawUrl || "")) { const a = el("a", "", "📄図面"); a.href = r.drawUrl; a.target = "_blank"; a.rel = "noopener noreferrer"; dTd.append(a); }
-    if (r.drawFile?.id) { const b = el("button", "lnk", "📄PDF"); b.type = "button"; b.onclick = () => openFile(r.drawFile, b); dTd.append(b); }
+    if (r.drawFile?.id) { const b = el("button", "lnk", "📄PDF"); b.type = "button"; b.onclick = () => openPdf(r.drawFile, b); prefetchPdf(b, r.drawFile); dTd.append(b); }
     tr.append(dTd, el("td", "nt", r.note || ""));
     tb.append(tr);
   }
   t.append(tb); wrap.append(t); m.append(wrap);
 }
 
-/** 図面の PDF（700KBずつに分けて置いてある）を集めて開く */
-async function openFile(f, btn) {
-  const w = window.open("", "_blank");
-  const label = btn.textContent; btn.textContent = "読み込み中…"; btn.disabled = true;
-  try {
-    const parts = [];
-    for (let n = 0; n < f.of; n++) {
-      const s = await getDoc(doc(db, "shokusaiFiles", `${f.id}_${n}`));
-      if (!s.exists()) throw new Error("図面の一部が見つかりません");
-      const bin = atob(s.data().b64); const u = new Uint8Array(bin.length);
-      for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
-      parts.push(u);
-    }
-    const url = URL.createObjectURL(new Blob(parts, { type: "application/pdf" }));
-    if (w) w.location.href = url; else location.href = url;
-  } catch (e) { w?.close(); alert("図面を開けませんでした：" + (e.message || e)); }
-  finally { btn.textContent = label; btn.disabled = false; }
-}
 </script>
 </body>
 </html>
