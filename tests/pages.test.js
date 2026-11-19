@@ -22,7 +22,7 @@ import { describe, it } from "node:test";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 /** 画面として確かめるもの */
-const PAGES = ["renraku/index.html", "shokusai/index.html", "mind/index.html"];
+const PAGES = ["renraku/index.html", "shokusai/index.html", "shokusai/share.html", "mind/index.html"];
 
 /** ファイルが export している名前を集める */
 function exportsOf(file) {
@@ -114,7 +114,7 @@ describe("公開リポジトリとしての約束", () => {
    * このリポジトリは公開なので、秘密を書いた時点で世界中から読める。
    * 置き忘れやすいものを機械で見張る。
    */
-  const FILES = [...PAGES, "index.html", "renraku/water.html", "assets/js/domain.js", "shokusai/browser.html"];
+  const FILES = [...PAGES, "index.html", "renraku/water.html", "assets/js/domain.js", "shokusai/browser.html", "shokusai/share.html"];
 
   it("鍵やトークンらしきものをコードに書いていない", () => {
     for (const file of FILES) {

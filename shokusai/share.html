@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#556529">
+<title>植栽の予定</title>
+<style>
+  /* 業者さまに送る、見るだけの一覧表。中身はその業者さまの物件だけ（アプリが自動で最新にする） */
+  :root { --bg:#F2F0E8; --card:#fff; --ink:#363735; --sub:#76766c; --line:#e1dccd; --head:#556529; --soft:#eceadd; --accent:#556529; --sand:#CAC0A7; --warn:#b5651d; --warnbg:#fbefe4; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#151714; --card:#1f221d; --ink:#eceee9; --sub:#9aa093; --line:#33382f; --head:#3d4a1d; --soft:#26301f; --accent:#9fb35a; --sand:#8c8470; --warn:#e3a066; --warnbg:#3a2a1c; } }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font-family:system-ui,"Hiragino Sans","Yu Gothic UI",sans-serif; -webkit-text-size-adjust:100%; }
+  header { background:var(--head); color:#fff; padding:10px 14px 9px; position:sticky; top:0; z-index:3; }
+  header h1 { margin:0; font-size:17px; }
+  header .meta { font-size:12px; opacity:.85; margin-top:2px; }
+  main { padding:8px; max-width:1400px; margin:0 auto; }
+  .msg { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:16px; margin:8px 0; font-size:14px; line-height:1.7; }
+  .note { font-size:12px; color:var(--sub); margin:2px 4px 6px; }
+  .tblwrap { overflow-x:auto; -webkit-overflow-scrolling:touch; border:1px solid var(--line); border-radius:10px; background:var(--card); }
+  table { border-collapse:separate; border-spacing:0; font-size:12.5px; min-width:760px; width:100%; }
+  th { background:var(--head); color:#fff; font-weight:bold; padding:6px 8px; text-align:left; white-space:nowrap; font-size:12px; }
+  td { padding:6px 8px; border-top:1px solid var(--line); vertical-align:top; background:var(--card); line-height:1.4; }
+  tbody tr:nth-child(even) td { background:color-mix(in srgb, var(--soft) 45%, var(--card)); }
+  th:first-child, td:first-child { position:sticky; left:0; z-index:1; box-shadow:2px 0 0 var(--line); }
+  td.nm { font-weight:bold; font-size:13px; max-width:140px; }
+  td.dt { white-space:nowrap; }
+  td.dt b { display:block; }
+  td.dt small { color:var(--sub); font-size:11px; }
+  td.dt.soon small { color:var(--warn); font-weight:bold; }
+  td.dt.late { background:var(--warnbg) !important; }
+  td.dt.late small { color:var(--warn); font-weight:bold; }
+  td.sub { color:var(--sub); }
+  td.trees { min-width:230px; }
+  .tree { display:flex; gap:6px; padding:1px 0; }
+  .tree .n { flex:1; }
+  .tree .s { color:var(--sub); white-space:nowrap; font-size:11.5px; }
+  td a, td button.lnk { color:var(--accent); white-space:nowrap; font-size:12.5px; border:none; background:none; padding:0; margin-right:6px; text-decoration:underline; cursor:pointer; font-family:inherit; }
+  td.nt { font-size:11.5px; color:var(--sub); max-width:220px; white-space:pre-wrap; }
+  @media (max-width:600px) { td, th { padding:6px; } td.nm { max-width:110px; } }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title">植栽の予定</h1>
+  <div class="meta" id="meta">読み込み中…</div>
+</header>
+<main id="main"></main>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
+import { getFirestore, doc, onSnapshot, getDoc } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
+import { firebaseConfig } from "../assets/js/firebase-config.js";
+
+const $ = (id) => document.getElementById(id);
+const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+const db = getFirestore(initializeApp(firebaseConfig));
+const key = new URLSearchParams(location.search).get("s") || "";
+
+const pad2 = (n) => String(n).padStart(2, "0");
+const dateOf = (k) => (/^\d{4}-\d{2}-(0[1-9]|[12]\d|3[01])$/.test(k || "") ? k : "");
+const keyToDate = (k) => { const [y, m, d] = k.split("-").map(Number); return new Date(y, m - 1, d); };
+const todayKey = () => { const t = new Date(); return `${t.getFullYear()}-${pad2(t.getMonth() + 1)}-${pad2(t.getDate())}`; };
+const daysFrom = (k) => (dateOf(k) ? Math.round((keyToDate(k) - keyToDate(todayKey())) / 864e5) : null);
+const wd = (k) => (dateOf(k) ? `(${"日月火水木金土"[keyToDate(k).getDay()]})` : "");
+const relText = (n) => (n == null ? "" : n < 0 ? `${-n}日過ぎ` : n === 0 ? "今日" : n === 1 ? "明日" : `あと${n}日`);
+const hhmm = (iso) => { const d = new Date(iso); return isNaN(d) ? "" : `${d.getMonth() + 1}/${d.getDate()} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`; };
+
+function show(msg) { $("main").innerHTML = ""; $("main").append(el("div", "msg", msg)); }
+
+if (!/^[A-Za-z0-9_-]{24,48}$/.test(key)) { $("meta").textContent = ""; show("リンクが正しくありません。送られてきたリンクをそのまま開いてください。"); }
+else onSnapshot(doc(db, "shokusaiShares", key), (snap) => {
+  if (!snap.exists() || snap.data().stopped) { $("meta").textContent = ""; show("このリンクは使えなくなりました。お手数ですが、アーキガーデンの担当者にお問い合わせください。"); return; }
+  render(snap.data());
+}, (e) => { $("meta").textContent = ""; show("読み込めませんでした（" + e.code + "）。通信の良いところで開き直してください。"); });
+
+function render(d) {
+  document.title = d.title || "植栽の予定";
+  $("title").textContent = d.title || "植栽の予定";
+  const rows = d.rows || [];
+  $("meta").textContent = `${rows.length}邸　${d.atISO ? hhmm(d.atISO) + " 時点" : ""}　アーキガーデン`;
+  const m = $("main"); m.innerHTML = "";
+  if (!rows.length) { m.append(el("div", "msg", "いまお願いしている植栽の予定はありません。")); return; }
+  m.append(el("div", "note", "表は横に動かして見られます。内容は自動で最新になります。"));
+  const wrap = el("div", "tblwrap"), t = el("table"), tr0 = el("tr");
+  for (const h of ["物件名", "準備", "施工", "配送", "植える木", "地図", "図面", "備考"]) tr0.append(el("th", "", h));
+  const th = el("thead"); th.append(tr0); t.append(th);
+  const tb = el("tbody");
+  for (const r of rows) {
+    const tr = el("tr");
+    tr.append(el("td", "nm", r.name));
+    for (const [label, k, warn] of [[r.prepLabel, r.prep, 2], [r.workLabel, r.work, 1]]) {
+      const n = daysFrom(k);
+      const td = el("td", "dt" + (n != null && n < 0 ? " late" : n != null && n <= warn ? " soon" : ""));
+      td.append(el("b", "", (label || "未定") + wd(k)));
+      if (n != null) td.append(el("small", "", relText(n)));
+      tr.append(td);
+    }
+    tr.append(el("td", r.delivery ? "" : "sub", r.delivery ? "あり" : "なし"));
+    const tt = el("td", "trees");
+    for (const it of r.items || []) {
+      const line = el("div", "tree");
+      line.append(el("span", "n", it.name + (it.form ? `（${it.form}）` : "")), el("span", "s", `${it.height || "指定なし"}　${it.qty ? it.qty + (it.unit || "") : ""}`));
+      tt.append(line);
+    }
+    if (!(r.items || []).length) tt.append(el("span", "s", "—"));
+    tr.append(tt);
+    const mapTd = el("td");
+    if (r.map) { const a = el("a", "", "📍地図"); a.href = r.map; a.target = "_blank"; a.rel = "noopener noreferrer"; mapTd.append(a); }
+    tr.append(mapTd);
+    const dTd = el("td");
+    if (/^https:\/\//i.test(r.drawUrl || "")) { const a = el("a", "", "📄図面"); a.href = r.drawUrl; a.target = "_blank"; a.rel = "noopener noreferrer"; dTd.append(a); }
+    if (r.drawFile?.id) { const b = el("button", "lnk", "📄PDF"); b.type = "button"; b.onclick = () => openFile(r.drawFile, b); dTd.append(b); }
+    tr.append(dTd, el("td", "nt", r.note || ""));
+    tb.append(tr);
+  }
+  t.append(tb); wrap.append(t); m.append(wrap);
+}
+
+/** 図面の PDF（700KBずつに分けて置いてある）を集めて開く */
+async function openFile(f, btn) {
+  const w = window.open("", "_blank");
+  const label = btn.textContent; btn.textContent = "読み込み中…"; btn.disabled = true;
+  try {
+    const parts = [];
+    for (let n = 0; n < f.of; n++) {
+      const s = await getDoc(doc(db, "shokusaiFiles", `${f.id}_${n}`));
+      if (!s.exists()) throw new Error("図面の一部が見つかりません");
+      const bin = atob(s.data().b64); const u = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
+      parts.push(u);
+    }
+    const url = URL.createObjectURL(new Blob(parts, { type: "application/pdf" }));
+    if (w) w.location.href = url; else location.href = url;
+  } catch (e) { w?.close(); alert("図面を開けませんでした：" + (e.message || e)); }
+  finally { btn.textContent = label; btn.disabled = false; }
+}
+</script>
+</body>
+</html>

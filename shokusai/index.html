@@ -50,6 +50,12 @@
   .tbl .nmbtn { display:block; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; border:none; background:none; padding:0; color:var(--edit); font-weight:bold; font-size:13px; text-align:left; text-decoration:underline; }
   .tbl td.dt { white-space:nowrap; }
   .tbl td.sub { color:var(--sub); }
+  .sharebar { display:flex; flex-wrap:wrap; align-items:center; gap:6px 8px; margin:8px 0 0; padding:8px 10px; background:var(--card); border:1px solid var(--line); border-radius:10px; }
+  .sharego { font-size:14px; font-weight:bold; padding:7px 12px; border-radius:8px; border:none; background:var(--accent); color:#fff; }
+  .sharestop { font-size:12px; padding:5px 10px; border-radius:8px; border:1px solid var(--warn); background:var(--card); color:var(--warn); margin-left:auto; }
+  .sharenote { flex-basis:100%; font-size:11.5px; color:var(--sub); }
+  .shareurl { flex-basis:100%; font-size:12px; word-break:break-all; white-space:pre-wrap; user-select:all; }
+  .shareurl:empty { display:none; }
   .form .mitei { align-self:flex-start; margin-top:2px; font-size:11.5px; padding:2px 8px; border-radius:6px; border:1px solid var(--line); background:var(--card); color:var(--sub); }
   .form .dvsel { width:100%; font-size:16px; padding:6px 8px; min-height:36px; border-radius:8px; border:1px solid var(--line); background:var(--card); color:var(--ink); }
   /* 一覧表で直せるマス：点線の下線と鉛筆で「押せる」ことを示す */
@@ -919,7 +925,9 @@ function render() {
     if (gone.length) card.append(el("div", "gone", "削除した品目：" + gone.map((it) => `${it.name} ${fmtHeight(it.height)}`).join("、")));
     list.append(card);
   }
+  if (tableView && canWrite() && $("contractor").value && $("contractor").value !== "業者未定") list.append(shareBar($("contractor").value));
   if (tableView && tableRows.length) list.append(buildTable(tableRows));
+  queueShareSync();
   const filtered = $("range").value !== "all" || $("contractor").value || $("hideDone").checked;
   $("shownCount").textContent = filtered ? `${shownN} / ${rows.length}邸を表示` : `${rows.length}邸`;
   if (filtered && !shownN) list.append(el("p", "note", "条件に合う邸はありません。上の絞り込みを「すべて」に戻すと全部見られます。"));
@@ -1076,6 +1084,86 @@ function buildTable(rows) {
   wrap.append(dl);
   if (canWrite()) wrap.prepend(el("div", "tblhint", "準備・施工・業者・配送のマスを押すと、その場で直せます"));
   return wrap;
+}
+
+// ---- 業者さまに送る一覧表（見るだけ）----
+// 業者さまごとに推測できない鍵を作り、その業者さまの物件だけを shokusaiShares/{鍵} に置く。
+// ボードの鍵は渡さないので、ほかの物件は見えない。中身は、アプリを開いているスタッフの画面が自動で最新にする。
+const SHARE_URL = new URL("share.html", location.href).href.split("?")[0];
+const shareKey = () => [...crypto.getRandomValues(new Uint8Array(32))].map((x) => "abcdefghijklmnopqrstuvwxyz0123456789"[x % 36]).join("");
+const shareOf = (con) => Object.entries(board.shares || {}).find(([, v]) => v?.contractor === con)?.[0] || "";
+/** その業者さまに見せる中身（物件名・日付・配送・植える木・地図・図面・備考） */
+function shareRows(con) {
+  const edits = board.edits || {};
+  const cmp = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
+  return propsOf().shown.filter((p) => (p.contractor || "") === con)
+    .sort((a, b) => cmp(a.prepSort, b.prepSort) || cmp(a.workSort, b.workSort))
+    .map((p) => {
+      const ad = p.address || "";
+      const map = /^https:\/\//i.test(ad) ? ad : ad && !/^[a-z]+:/i.test(ad) ? "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent(ad) : "";
+      return {
+        name: p.name, prep: dateOf(p.prepSort), prepLabel: p.prepLabel || MITEI, work: dateOf(p.workSort), workLabel: p.workLabel || MITEI,
+        delivery: deliv(p.delivery), note: p.note || "", map, drawUrl: /^https:\/\//i.test(p.drawUrl || "") ? p.drawUrl : "",
+        drawFile: p.drawFile?.id ? { id: p.drawFile.id, of: p.drawFile.of } : null,
+        items: itemsOf(p, edits).shown.map((it) => ({ name: it.name, height: it.height || "", qty: it.qty || "", unit: it.unit || "", form: kabuLabel(it.form) || it.form || "" })),
+      };
+    });
+}
+const sharePayload = (con) => ({ contractor: con, title: honor(con) + "　植栽の予定", rows: shareRows(con) });
+const shareSent = {}; // 鍵 → 最後に書いた中身（同じなら書かない）
+let shareTimer = 0;
+function queueShareSync() {
+  if (!canWrite() || draft || !Object.keys(board?.shares || {}).length) return;
+  clearTimeout(shareTimer);
+  shareTimer = setTimeout(async () => {
+    for (const [key, v] of Object.entries(board.shares || {})) {
+      if (!v?.contractor) continue;
+      const pl = sharePayload(v.contractor), h = JSON.stringify(pl);
+      if (shareSent[key] === h) continue;
+      try { await setDoc(doc(db, "shokusaiShares", key), { ...pl, stopped: false, ...stamp() }); shareSent[key] = h; }
+      catch (e) { console.warn("業者さまの一覧表を更新できませんでした", e); }
+    }
+  }, 1500);
+}
+/** 一覧表の上に出す「この業者さまに送るリンク」 */
+function shareBar(con) {
+  const bar = el("div", "sharebar");
+  const key = shareOf(con);
+  const go = el("button", "sharego", key ? `🔗 ${honor(con)}に送るリンク` : `🔗 ${honor(con)}に送るリンクを作る`); go.type = "button";
+  const out = el("div", "shareurl");
+  go.onclick = async () => {
+    let k = shareOf(con);
+    go.disabled = true;
+    try {
+      if (!k) {
+        k = shareKey();
+        const pl = sharePayload(con);
+        await setDoc(doc(db, "shokusaiShares", k), { ...pl, stopped: false, ...stamp() });
+        shareSent[k] = JSON.stringify(pl);
+        if (!(await save({ ["shares." + k]: { contractor: con, ...stamp() } }))) return;
+      }
+      const url = SHARE_URL + "?s=" + k;
+      out.textContent = url;
+      let done = "";
+      if (navigator.share) { try { await navigator.share({ title: honor(con) + "　植栽の予定", url }); done = "送り先を選ぶ画面を出しました"; } catch {} }
+      if (!done) { try { await navigator.clipboard.writeText(url); done = "リンクをコピーしました。LINE などに貼って送ってください"; } catch { done = "下のリンクを長押ししてコピーしてください"; } }
+      out.prepend(el("b", "", done + "\n"));
+    } finally { go.disabled = false; }
+  };
+  bar.append(go);
+  if (key) {
+    const stop = el("button", "sharestop", "リンクを止める"); stop.type = "button";
+    stop.onclick = async () => {
+      if (!confirm(`${honor(con)}に送ったリンクを止めますか？
+止めると、そのリンクを開いても見られなくなります（あとで作り直すと新しいリンクになります）。`)) return;
+      try { await setDoc(doc(db, "shokusaiShares", key), { contractor: con, title: "", rows: [], stopped: true, ...stamp() }); } catch (e) { alert("止められませんでした：" + (e.code || e)); return; }
+      delete shareSent[key];
+      await save({ ["shares." + key]: deleteField() });
+    };
+    bar.append(stop);
+  }
+  bar.append(el("div", "sharenote", key ? "見るだけの一覧表です。この業者さまの物件だけが入り、内容は自動で最新になります。" : "見るだけの一覧表を作ります。この業者さまの物件だけが入り、ほかの物件は見えません。"), out);
+  return bar;
 }
 
 /**

@@ -85,8 +85,9 @@ service cloud.firestore {
       }
       function staffEdit() {
         let d = request.resource.data;
-        // checks＝選定のチェック、edits＝品目の手直し・追加・削除、props＝物件の手直し・追加・削除
-        return d.diff(resource.data).affectedKeys().hasOnly(['checks', 'updateRequest', 'edits', 'props'])
+        // checks＝選定のチェック、edits＝品目の手直し・追加・削除、props＝物件の手直し・追加・削除、shares＝業者様に送ったリンクの控え
+        return d.diff(resource.data).affectedKeys().hasOnly(['checks', 'updateRequest', 'edits', 'props', 'shares'])
+          && (!('shares' in d) || (d.shares is map && d.shares.size() <= 100))
           && d.checks is map && d.checks.size() <= 3000
           && (!('edits' in d) || (d.edits is map && d.edits.size() <= 3000))
           && (!('props' in d) || (d.props is map && d.props.size() <= 500))
@@ -120,6 +121,62 @@ service cloud.firestore {
         && request.resource.data.n is int && request.resource.data.of is int
         && request.resource.data.of <= 25;
       allow update, list, delete: if false;
+    }
+
+    /**
+     * 植栽チェックを業者様に見せる一覧表（shokusai/share.html?s=鍵）。
+     * 中身はその業者様の物件だけ（ボードの鍵は入れない）。作る・最新にする・止めるのはスタッフの画面。
+     * 見るのは鍵を知っている人だけ（ログイン不要）。一覧は不可。
+     */
+    match /shokusaiShares/{key} {
+      function isStaffG() {
+        return request.auth != null
+          && request.auth.token.firebase.sign_in_provider == 'google.com'
+          && request.auth.token.email_verified == true
+          && request.auth.token.email.matches('.*@archigarden[.]net西村さんへの質問と、その答え。
+     *
+     * 中身は役員だけのもの（人の評価・会社の線引きに関わる質問がある）なので、
+     * 植栽チェックと違い**文書のIDを知っていても読めない**。読めるのは次の2つだけ。
+     *   ・PC（lw-report の西村マインド学習）の専用アカウント … 質問・まとめを書き、答えを読んで取り込んだら消す
+     *   ・西村さん本人（会社の Google でログイン）… 読む・answers（答え）だけ書く
+     * 人の指定は uid で行う（公開リポジトリにメールアドレスを書かないため）。
+     */
+    match /mindBoards/{boardId} {
+      function isMindPc() {
+        return request.auth != null && request.auth.uid == '9M3qau8KT9REqhlFV4B7DVTG7yE3';
+      }
+      function isOwner() {
+        return request.auth != null
+          && request.auth.token.firebase.sign_in_provider == 'google.com'
+          && request.auth.uid == 'BL0a8jFP4jTDnPVjVXRI0k0esr52';
+      }
+      function ownerEdit() {
+        let d = request.resource.data;
+        return d.diff(resource.data).affectedKeys().hasOnly(['answers'])
+          && d.answers is map && d.answers.size() <= 300;
+      }
+
+      allow get: if isMindPc() || isOwner();
+      allow create: if isMindPc();
+      allow update: if isMindPc() || (isOwner() && ownerEdit());
+      allow list, delete: if false;
+    }
+
+    // ここに書いていないものは全部拒否
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
+);
+      }
+      allow get: if true;
+      allow create, update: if isStaffG()
+        && key.size() >= 24 && key.size() <= 48
+        && request.resource.data.keys().hasOnly(['contractor', 'title', 'rows', 'stopped', 'by', 'atISO'])
+        && request.resource.data.rows is list && request.resource.data.rows.size() <= 200
+        && request.resource.data.stopped is bool;
+      allow list, delete: if false;
     }
 
     /**
