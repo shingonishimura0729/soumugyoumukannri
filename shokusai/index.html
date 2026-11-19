@@ -1110,6 +1110,7 @@ function shareRows(con) {
     });
 }
 const sharePayload = (con) => ({ contractor: con, title: honor(con) + "　植栽の予定", rows: shareRows(con) });
+const shareMsg = {}; // 業者 → 最後に出した案内（コピーしました＋リンク）
 const shareSent = {}; // 鍵 → 最後に書いた中身（同じなら書かない）
 let shareTimer = 0;
 function queueShareSync() {
@@ -1131,6 +1132,7 @@ function shareBar(con) {
   const key = shareOf(con);
   const go = el("button", "sharego", key ? `🔗 ${honor(con)}に送るリンク` : `🔗 ${honor(con)}に送るリンクを作る`); go.type = "button";
   const out = el("div", "shareurl");
+  if (key && shareMsg[con]) out.textContent = shareMsg[con]; // 作った直後に描き直されても、案内とリンクを残す
   go.onclick = async () => {
     let k = shareOf(con);
     go.disabled = true;
@@ -1143,11 +1145,11 @@ function shareBar(con) {
         if (!(await save({ ["shares." + k]: { contractor: con, ...stamp() } }))) return;
       }
       const url = SHARE_URL + "?s=" + k;
-      out.textContent = url;
       let done = "";
       if (navigator.share) { try { await navigator.share({ title: honor(con) + "　植栽の予定", url }); done = "送り先を選ぶ画面を出しました"; } catch {} }
       if (!done) { try { await navigator.clipboard.writeText(url); done = "リンクをコピーしました。LINE などに貼って送ってください"; } catch { done = "下のリンクを長押ししてコピーしてください"; } }
-      out.prepend(el("b", "", done + "\n"));
+      shareMsg[con] = done + "\n" + url;
+      for (const o of document.querySelectorAll(".shareurl")) o.textContent = shareMsg[con];
     } finally { go.disabled = false; }
   };
   bar.append(go);
@@ -1157,7 +1159,7 @@ function shareBar(con) {
       if (!confirm(`${honor(con)}に送ったリンクを止めますか？
 止めると、そのリンクを開いても見られなくなります（あとで作り直すと新しいリンクになります）。`)) return;
       try { await setDoc(doc(db, "shokusaiShares", key), { contractor: con, title: "", rows: [], stopped: true, ...stamp() }); } catch (e) { alert("止められませんでした：" + (e.code || e)); return; }
-      delete shareSent[key];
+      delete shareSent[key]; delete shareMsg[con];
       await save({ ["shares." + key]: deleteField() });
     };
     bar.append(stop);
