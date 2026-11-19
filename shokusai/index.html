@@ -372,6 +372,8 @@ if (!boardId) {
 onAuthStateChanged(auth, (u) => {
   user = u;
   $("login").style.display = u ? "none" : "inline-block";
+  // ブラウザでログインできた人には「ブラウザで開いて」の注意書きは要らないので隠す（2026-11-20 本人の指示）
+  $("browserNote").style.display = u ? "none" : "";
   $("who").innerHTML = "";
   if (u) {
     const s = document.createElement("span");
