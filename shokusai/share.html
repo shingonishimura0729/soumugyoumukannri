@@ -68,7 +68,7 @@
   <div class="meta" id="meta">読み込み中…</div>
 </header>
 <div id="top">
-  <div class="bnote" id="browserNote">
+  <div class="bnote" id="browserNote" hidden>
     <b>⚠ Safari・Chrome などのブラウザで開いてください。</b>
     LINE・LINE WORKS の中で開くと、図面が開かないことがあります。画面の右上（または右下）のメニューから「ブラウザで開く」を選んでください。
   </div>
@@ -105,6 +105,8 @@ const hhmm = (iso) => { const d = new Date(iso); return isNaN(d) ? "" : `${d.get
 
 // ---- ブラウザで開く注意書き・見方の動画（video/guide_vendor.*。作り方：植栽ﾁｪｯｸ\説明動画\guide_vendor.json）----
 if (/WORKSMOBILE|LINEWORKS|\bLine\/|FBAN|FBAV|Instagram|; wv\)/i.test(navigator.userAgent)) {
+  // ブラウザで開いた人には注意書きを出さない。アプリの中の画面のときだけ出す（2026-11-20 本人の指示）
+  $("browserNote").hidden = false;
   $("browserNote").classList.add("inapp");
   $("browserNote").querySelector("b").textContent = "⚠ いまアプリの中の画面で開いています。Safari・Chrome などのブラウザで開き直してください。";
 }
