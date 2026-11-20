@@ -39,6 +39,27 @@
   td a, td button.lnk { color:var(--accent); white-space:nowrap; font-size:12.5px; border:none; background:none; padding:0; margin-right:6px; text-decoration:underline; cursor:pointer; font-family:inherit; }
   td.nt { font-size:11.5px; color:var(--sub); max-width:220px; white-space:pre-wrap; }
   @media (max-width:600px) { td, th { padding:6px; } td.nm { max-width:110px; } }
+  /* ブラウザで開く注意書きと、見方の動画（2026-11-20 本人の指示） */
+  #top { padding:8px 8px 0; max-width:1400px; margin:0 auto; }
+  .bnote { padding:8px 10px; border-radius:10px; border:1px solid var(--warn); background:var(--warnbg); font-size:12.5px; line-height:1.6; }
+  .bnote b { color:var(--warn); }
+  .bnote.inapp { border-width:2px; font-size:13.5px; }
+  #howto { margin:8px 0 0; border:none; border-radius:8px; background:var(--accent); color:#fff; font-weight:bold; font-size:14px; padding:8px 14px; font-family:inherit; cursor:pointer; }
+  #videoBox { position:fixed; inset:0; z-index:60; background:rgba(0,0,0,.7); display:flex; align-items:center; justify-content:center; padding:12px; }
+  #videoBox[hidden] { display:none; }
+  #videoBox .vb { background:var(--card); border-radius:12px; overflow:hidden; display:flex; flex-direction:column; max-height:100%; width:min(560px, 100%); }
+  #videoBox .vh { display:flex; justify-content:space-between; align-items:center; padding:8px 12px; }
+  #videoBox .vh button { border:1px solid var(--line); background:var(--card); color:var(--ink); border-radius:8px; padding:5px 10px; font-size:13px; }
+  #videoBox video { display:block; width:100%; max-height:58vh; background:#000; flex:none; }
+  #videoBox .toc { overflow-y:auto; padding:6px 10px 10px; min-height:0; }
+  #videoBox .toch { font-size:11.5px; color:var(--sub); margin:2px 2px 4px; }
+  #videoBox ol { list-style:none; margin:0; padding:0; counter-reset:toc; }
+  #videoBox ol li { counter-increment:toc; }
+  #videoBox ol button { display:flex; width:100%; align-items:center; gap:8px; padding:8px 10px; margin-bottom:4px; border-radius:8px; border:1px solid var(--line); background:var(--card); color:var(--ink); font-size:14px; text-align:left; font-family:inherit; }
+  #videoBox ol button::before { content:counter(toc) "."; font-weight:bold; color:var(--accent); min-width:1.6em; }
+  #videoBox ol button .tt { flex:1; }
+  #videoBox ol button .tm { font-size:12px; color:var(--sub); }
+  #videoBox ol button.on { border-color:var(--accent); background:var(--soft); font-weight:bold; }
 </style>
 </head>
 <body>
@@ -46,7 +67,21 @@
   <h1 id="title">植栽の予定</h1>
   <div class="meta" id="meta">読み込み中…</div>
 </header>
+<div id="top">
+  <div class="bnote" id="browserNote">
+    <b>⚠ Safari・Chrome などのブラウザで開いてください。</b>
+    LINE・LINE WORKS の中で開くと、図面が開かないことがあります。画面の右上（または右下）のメニューから「ブラウザで開く」を選んでください。
+  </div>
+  <button id="howto" type="button">▶ 見方の動画（約2分）</button>
+</div>
 <main id="main"></main>
+<div id="videoBox" hidden>
+  <div class="vb">
+    <div class="vh"><b>植栽の予定の見方</b><button id="videoClose" type="button">閉じる ✕</button></div>
+    <video id="guideVideo" controls playsinline preload="none"></video>
+    <div class="toc"><div class="toch">目次（押すとその章から再生）</div><ol id="videoToc"></ol></div>
+  </div>
+</div>
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
@@ -67,6 +102,37 @@ const daysFrom = (k) => (dateOf(k) ? Math.round((keyToDate(k) - keyToDate(todayK
 const wd = (k) => (dateOf(k) ? `(${"日月火水木金土"[keyToDate(k).getDay()]})` : "");
 const relText = (n) => (n == null ? "" : n < 0 ? `${-n}日過ぎ` : n === 0 ? "今日" : n === 1 ? "明日" : `あと${n}日`);
 const hhmm = (iso) => { const d = new Date(iso); return isNaN(d) ? "" : `${d.getMonth() + 1}/${d.getDate()} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`; };
+
+// ---- ブラウザで開く注意書き・見方の動画（video/guide_vendor.*。作り方：植栽ﾁｪｯｸ\説明動画\guide_vendor.json）----
+if (/WORKSMOBILE|LINEWORKS|\bLine\/|FBAN|FBAV|Instagram|; wv\)/i.test(navigator.userAgent)) {
+  $("browserNote").classList.add("inapp");
+  $("browserNote").querySelector("b").textContent = "⚠ いまアプリの中の画面で開いています。Safari・Chrome などのブラウザで開き直してください。";
+}
+{
+  const v = $("guideVideo"), ol = $("videoToc");
+  const mmss = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
+  let loaded = false;
+  $("howto").onclick = async () => {
+    $("videoBox").hidden = false;
+    if (!v.src) v.src = "video/guide_vendor.mp4";
+    v.play().catch(() => {});
+    if (loaded) return;
+    loaded = true;
+    try {
+      const j = await fetch("video/guide_vendor.chapters.json").then((r) => r.json());
+      for (const c of j.chapters) {
+        const li = el("li"), b = el("button"); b.type = "button"; b.dataset.start = c.start; b.dataset.end = c.end;
+        b.append(el("span", "tt", c.title), el("span", "tm", mmss(c.start)));
+        b.onclick = () => { v.currentTime = c.start + 0.05; v.play().catch(() => {}); };
+        li.append(b); ol.append(li);
+      }
+    } catch { loaded = false; ol.append(el("li", "", "目次を読み込めませんでした")); }
+  };
+  v.ontimeupdate = () => { for (const b of ol.querySelectorAll("button")) b.classList.toggle("on", v.currentTime >= +b.dataset.start && v.currentTime < +b.dataset.end); };
+  const close = () => { v.pause(); $("videoBox").hidden = true; };
+  $("videoClose").onclick = close;
+  $("videoBox").onclick = (e) => { if (e.target === $("videoBox")) close(); };
+}
 
 function show(msg) { $("main").innerHTML = ""; $("main").append(el("div", "msg", msg)); }
 

@@ -409,6 +409,7 @@ const GUIDES = [
   { key: "guide_card", label: "カード" },
   { key: "guide_table", label: "一覧表" },
   { key: "guide_share", label: "一覧表（業者さま用）" },
+  { key: "guide_vendor", label: "業者さま向け" },
 ];
 const tocCache = {};
 let guideNow = "";
@@ -1183,9 +1184,11 @@ function shareBar(con) {
         if (!(await save({ ["shares." + k]: { contractor: con, ...stamp() } }))) return;
       }
       const url = SHARE_URL + "?s=" + k;
+      // 送る文に「ブラウザで開いて」と見方の動画の案内を付ける（2026-11-20 本人の指示）
+      const text = `${honor(con)}　植栽の予定です。\n※Safari・Chrome などのブラウザで開いてください（LINE の中では図面が開かないことがあります）。\n見方は、開いた画面の「▶ 見方の動画」で確かめられます。`;
       let done = "";
-      if (navigator.share) { try { await navigator.share({ title: honor(con) + "　植栽の予定", url }); done = "送り先を選ぶ画面を出しました"; } catch {} }
-      if (!done) { try { await navigator.clipboard.writeText(url); done = "リンクをコピーしました。LINE などに貼って送ってください"; } catch { done = "下のリンクを長押ししてコピーしてください"; } }
+      if (navigator.share) { try { await navigator.share({ title: honor(con) + "　植栽の予定", text, url }); done = "送り先を選ぶ画面を出しました"; } catch {} }
+      if (!done) { try { await navigator.clipboard.writeText(text + "\n" + url); done = "案内文とリンクをコピーしました。LINE などに貼って送ってください"; } catch { done = "下のリンクを長押ししてコピーしてください"; } }
       shareMsg[con] = done + "\n" + url;
       for (const o of document.querySelectorAll(".shareurl")) o.textContent = shareMsg[con];
     } finally { go.disabled = false; }
