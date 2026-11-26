@@ -22,7 +22,7 @@ import { describe, it } from "node:test";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 /** 画面として確かめるもの */
-const PAGES = ["renraku/index.html", "shokusai/index.html", "shokusai/share.html", "mind/index.html"];
+const PAGES = ["renraku/index.html", "shokusai/index.html", "shokusai/share.html", "mind/index.html", "remind/index.html", "remind/t.html", "remind/p.html"];
 
 /** ファイルが export している名前を集める */
 function exportsOf(file) {
@@ -148,8 +148,14 @@ describe("公開リポジトリとしての約束", () => {
      */
     const rules = readFileSync(resolve(root, "firestore.rules"), "utf8");
     const allows = [...rules.matchAll(/allow\s+([^:]+):\s*if\s+([^;]+);/g)];
+    /**
+     * 例外は1つだけ：設計リマインド（remindTasks）の一覧は、西村さん本人（Google の uid 固定）と
+     * PCの専用アカウント（uid 固定）だけに許す。どちらもログイン必須で、鍵を知らない第三者は一覧を取れない。
+     */
+    const ALLOWED_LIST = new Set(["isOwnerR() || isPcR()"]);
     for (const [, actions, condition] of allows) {
       if (/\blist\b/.test(actions)) {
+        if (ALLOWED_LIST.has(condition.trim())) continue;
         assert.match(condition.trim(), /^false$/, `list が ${condition} で許されています`);
       }
     }

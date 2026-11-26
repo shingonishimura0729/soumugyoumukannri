@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<title>設計リマインド</title>
+<link rel="stylesheet" href="remind.css">
+</head>
+<body>
+<header>
+  <h1>📌 設計リマインド</h1>
+  <div id="label">読み込み中…</div>
+</header>
+<main>
+  <div id="login" class="center" hidden>
+    <p>西村さんの会社の Google アカウントでログインしてください。</p>
+    <button id="loginBtn" class="primary">Google でログイン</button>
+    <p class="note">LINE WORKS の中で開いてログインできないときは、右上のメニューから「ブラウザで開く」を選んでください。</p>
+  </div>
+  <div id="msg"></div>
+  <div id="content" hidden>
+    <nav class="tabs">
+      <button id="tabNew" class="tab on">新しく送る</button>
+      <button id="tabList" class="tab">一覧</button>
+    </nav>
+
+    <section id="paneNew">
+      <label class="f">相手
+        <select id="to"></select>
+        <span class="note" id="roomNote"></span>
+      </label>
+      <label class="f">物件名
+        <input id="property" maxlength="100" placeholder="例：〇〇邸（外構）" autocomplete="off">
+      </label>
+      <div class="f">やること
+        <div id="todos"></div>
+        <button id="addTodo" type="button">＋ やることを足す</button>
+      </div>
+      <div class="f">確認事項（相手に答えを書いてもらう）
+        <div id="checks"></div>
+        <button id="addCheck" type="button">＋ 確認事項を足す</button>
+      </div>
+      <label class="f">締め日（無ければ空のまま＝済になるまで毎朝知らせる）
+        <span class="row"><input id="due" type="date"><button id="clearDue" type="button">空にする</button></span>
+      </label>
+      <div class="preview" id="preview"></div>
+      <button id="send" class="primary big">設計共有LINEへ送る</button>
+    </section>
+
+    <section id="paneList" hidden>
+      <div class="row">
+        <label><input type="checkbox" id="showDone"> 済も表示</label>
+      </div>
+      <div id="list"></div>
+    </section>
+
+    <p class="note" style="margin-top:30px">ログイン中：<span id="who"></span>　<a href="#" id="logout">ログアウト</a></p>
+  </div>
+</main>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
+import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-auth.js";
+import { getFirestore, doc, getDoc, setDoc, updateDoc, deleteDoc, collection, onSnapshot } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
+import { firebaseConfig } from "../assets/js/firebase-config.js";
+import { esc, newKey, todayStr, dueLabel, isOverdue, taskUrl } from "./remind.js";
+
+/*
+ * 西村さん専用：リマインドを作って送る／一覧で未済と答えを見る。
+ * 中身（物件名など）はこのファイルに書かない。守りは firestore.rules の remindTasks。
+ * 実際に LINE WORKS へ送るのはPC（lw_report/remind.py）。ここでは「送る」を押すと文書を作るだけ。
+ */
+const $ = (id) => document.getElementById(id);
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+let rooms = [], tasks = [], unsub = null;
+
+/* ---------- 入力 ---------- */
+function addLine(boxId, ph, val = "") {
+  const wrap = document.createElement("div");
+  wrap.className = "line";
+  wrap.innerHTML = `<input maxlength="200" placeholder="${esc(ph)}" value="${esc(val)}"><button type="button" class="x" title="消す">×</button>`;
+  wrap.querySelector(".x").addEventListener("click", () => { wrap.remove(); preview(); });
+  wrap.querySelector("input").addEventListener("input", preview);
+  $(boxId).appendChild(wrap);
+}
+const lines = (boxId) => [...$(boxId).querySelectorAll("input")].map((i) => i.value.trim()).filter(Boolean);
+
+function preview() {
+  const r = rooms.find((x) => x.userId === $("to").value);
+  const todos = lines("todos"), checks = lines("checks"), due = $("due").value;
+  if (!r) { $("preview").textContent = ""; return; }
+  let t = `【リマインド】${r.name}さんへ\n物件：${$("property").value.trim() || "（物件名）"}\n`;
+  if (todos.length) t += "■やること\n" + todos.map((x) => "・" + x).join("\n") + "\n";
+  if (checks.length) t += "■確認事項\n" + checks.map((x) => "・" + x).join("\n") + "\n";
+  t += due ? `締め日：${dueLabel(due)}\n` : "締め日：なし（済になるまで毎朝お知らせ）\n";
+  t += "→ 済・答え・日付変更はボタンから";
+  $("preview").textContent = "送る内容の見本（" + r.roomTitle + "）\n\n" + t;
+  $("roomNote").textContent = "送り先：" + r.roomTitle;
+}
+
+$("addTodo").addEventListener("click", () => addLine("todos", "例：ブロック数量の拾い出し"));
+$("addCheck").addEventListener("click", () => addLine("checks", "例：門柱の位置はお客様了承済みか"));
+$("clearDue").addEventListener("click", () => { $("due").value = ""; preview(); });
+for (const id of ["to", "property", "due"]) $(id).addEventListener("input", preview);
+
+$("send").addEventListener("click", async () => {
+  const r = rooms.find((x) => x.userId === $("to").value);
+  const property = $("property").value.trim(), todos = lines("todos"), checks = lines("checks"), due = $("due").value;
+  if (!r) return say("相手を選んでください。", true);
+  if (!property) return say("物件名を入れてください。", true);
+  if (!todos.length && !checks.length) return say("やることか確認事項を1つは入れてください。", true);
+  if (due && due < todayStr()) return say("締め日が過去の日付です。", true);
+  $("send").disabled = true;
+  try {
+    const now = new Date().toISOString();
+    const key = newKey();
+    await setDoc(doc(db, "remindTasks", key), {
+      toName: r.name, toUserId: r.userId, channelId: r.channelId, roomTitle: r.roomTitle,
+      property, todos, checks: checks.map((q) => ({ q, a: "", aAtISO: "" })),
+      due, status: "open", doneAtISO: "", createdAtISO: now, updatedAtISO: now,
+      sentAtISO: "", sentError: "", dueLog: [], events: [], notified: 0,
+    });
+    $("property").value = ""; $("todos").innerHTML = ""; $("checks").innerHTML = ""; $("due").value = "";
+    addLine("todos", "例：ブロック数量の拾い出し"); addLine("checks", "例：門柱の位置はお客様了承済みか");
+    preview();
+    say(`${r.name}さんあてに受け付けました。1〜2分で「${r.roomTitle}」に出ます。`);
+  } catch (e) {
+    say(`送れませんでした（${e.code || e.message}）。もう一度押してください。`, true);
+  } finally { $("send").disabled = false; }
+});
+
+function say(t, err = false) {
+  $("msg").innerHTML = `<p class="${err ? "err" : "box"}">${esc(t)}</p>`;
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+/* ---------- 一覧 ---------- */
+function renderList() {
+  const showDone = $("showDone").checked;
+  const byPerson = new Map();
+  for (const t of tasks) {
+    if (!showDone && t.status === "done") continue;
+    if (!byPerson.has(t.toName)) byPerson.set(t.toName, []);
+    byPerson.get(t.toName).push(t);
+  }
+  if (!byPerson.size) { $("list").innerHTML = "<p>未済のリマインドはありません。</p>"; return; }
+  let html = "";
+  for (const [name, arr] of byPerson) {
+    arr.sort((a, b) => (a.status > b.status ? 1 : a.status < b.status ? -1 : (a.due || "9999") < (b.due || "9999") ? -1 : 1));
+    const open = arr.filter((t) => t.status === "open").length;
+    html += `<h2>${esc(name)}さん（未済 ${open}件）</h2>`;
+    for (const t of arr) {
+      const od = t.status === "open" && isOverdue(t.due);
+      const sent = t.sentAtISO ? "" : (t.sentError ? `<span class="tag red">送れていない：${esc(t.sentError)}</span>` : '<span class="tag">送信待ち</span>');
+      html += `<div class="card ${t.status === "done" ? "done" : ""} ${od ? "over" : ""}">
+        <div class="ttl">${esc(t.property)} ${t.status === "done" ? '<span class="tag green">済</span>' : ""} ${od ? '<span class="tag red">締め日過ぎ</span>' : ""} ${sent}</div>
+        <div class="sub">締め日：${t.due ? esc(dueLabel(t.due)) : "なし"}${(t.dueLog || []).length ? `（変更 ${t.dueLog.length}回）` : ""}</div>
+        ${(t.todos || []).length ? "<ul>" + t.todos.map((x) => `<li>${esc(x)}</li>`).join("") + "</ul>" : ""}
+        ${(t.checks || []).map((c) => `<div class="qa"><b>確認：</b>${esc(c.q)}<br>${c.a ? `<b>答え：</b>${esc(c.a)}` : '<span class="sub">まだ答えなし</span>'}</div>`).join("")}
+        <div class="row">
+          <a class="btnlike" href="${esc(taskUrl(t.id))}" target="_blank" rel="noopener">開く</a>
+          ${t.status === "open" ? `<button data-act="done" data-id="${esc(t.id)}">済にする</button>` : `<button data-act="reopen" data-id="${esc(t.id)}">未済に戻す</button>`}
+          <button data-act="del" data-id="${esc(t.id)}" class="danger">消す</button>
+        </div>
+      </div>`;
+    }
+  }
+  $("list").innerHTML = html;
+}
+$("showDone").addEventListener("change", renderList);
+$("list").addEventListener("click", async (e) => {
+  const b = e.target.closest("button[data-act]");
+  if (!b) return;
+  const id = b.dataset.id, now = new Date().toISOString();
+  try {
+    if (b.dataset.act === "done") await updateDoc(doc(db, "remindTasks", id), { status: "done", doneAtISO: now, updatedAtISO: now });
+    if (b.dataset.act === "reopen") await updateDoc(doc(db, "remindTasks", id), { status: "open", doneAtISO: "", updatedAtISO: now });
+    if (b.dataset.act === "del") {
+      const t = tasks.find((x) => x.id === id);
+      if (!confirm(`「${t ? t.property : ""}」を消します。元に戻せません。よろしいですか？`)) return;
+      await deleteDoc(doc(db, "remindTasks", id));
+    }
+  } catch (err) { say(`できませんでした（${err.code || err.message}）`, true); }
+});
+
+/* ---------- 切り替え・ログイン ---------- */
+function tab(which) {
+  $("paneNew").hidden = which !== "new"; $("paneList").hidden = which !== "list";
+  $("tabNew").classList.toggle("on", which === "new"); $("tabList").classList.toggle("on", which === "list");
+  $("msg").innerHTML = "";
+}
+$("tabNew").addEventListener("click", () => tab("new"));
+$("tabList").addEventListener("click", () => tab("list"));
+
+$("loginBtn").addEventListener("click", async () => {
+  try { await signInWithPopup(auth, new GoogleAuthProvider()); }
+  catch (e) { if (e.code !== "auth/popup-closed-by-user") say(`ログインできませんでした（${e.code}）`, true); }
+});
+$("logout").addEventListener("click", (e) => { e.preventDefault(); signOut(auth); });
+
+onAuthStateChanged(auth, async (user) => {
+  if (unsub) { unsub(); unsub = null; }
+  $("login").hidden = !!user;
+  $("content").hidden = true;
+  if (!user) { $("label").textContent = "ログインしてください"; return; }
+  $("who").textContent = user.email || "";
+  try {
+    const snap = await getDoc(doc(db, "remindRooms", "main"));
+    rooms = snap.exists() ? (snap.data().rooms || []) : [];
+  } catch (e) {
+    $("label").textContent = "";
+    $("msg").innerHTML = e.code === "permission-denied"
+      ? '<p class="err">この画面は西村さん専用です。西村さんの会社の Google アカウントでログインしてください。</p>'
+      : `<p class="err">読み込めませんでした（${esc(e.code)}）</p>`;
+    return;
+  }
+  $("to").innerHTML = rooms.length
+    ? rooms.map((r) => `<option value="${esc(r.userId)}">${esc(r.name)}さん（${esc(r.roomTitle)}）</option>`).join("")
+    : '<option value="">（送れる相手がまだいません）</option>';
+  if (!$("todos").children.length) { addLine("todos", "例：ブロック数量の拾い出し"); addLine("checks", "例：門柱の位置はお客様了承済みか"); }
+  preview();
+  $("content").hidden = false;
+  $("label").textContent = `送れる相手 ${rooms.length}人`;
+  unsub = onSnapshot(collection(db, "remindTasks"), (qs) => {
+    tasks = qs.docs.map((d) => ({ id: d.id, ...d.data() }));
+    const open = tasks.filter((t) => t.status === "open").length;
+    $("tabList").textContent = `一覧（未済 ${open}）`;
+    renderList();
+  }, (e) => { $("list").innerHTML = `<p class="err">一覧を読めませんでした（${esc(e.code)}）</p>`; });
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<title>リマインド</title>
+<link rel="stylesheet" href="remind.css">
+</head>
+<body>
+<header>
+  <h1>📌 リマインド</h1>
+  <div id="label">読み込み中…</div>
+</header>
+<main>
+  <div id="msg"></div>
+  <div id="content" hidden>
+    <div class="ttl" id="property" style="font-size:20px"></div>
+    <div class="sub" id="toWho"></div>
+
+    <div id="todoWrap"><h2>やること</h2><ul id="todos"></ul></div>
+
+    <div id="checkWrap"><h2>確認事項（答えを書いて「答えを送る」）</h2><div id="checks"></div></div>
+
+    <h2>締め日</h2>
+    <div id="dueNow"></div>
+    <div class="row">
+      <input type="date" id="newDue">
+      <button id="saveDue">締め日を変える</button>
+      <button id="noDue">締め日なしにする</button>
+    </div>
+    <p class="note">締め日を変えると、西村さんにも知らせが届きます。</p>
+
+    <h2>終わったら</h2>
+    <div id="doneArea"></div>
+  </div>
+</main>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
+import { getFirestore, doc, onSnapshot, updateDoc } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
+import { firebaseConfig } from "../assets/js/firebase-config.js";
+import { esc, todayStr, dueLabel, isOverdue } from "./remind.js";
+
+/*
+ * 受け手が開く1件の画面。ログインなし・リンクの鍵（?k=）で開く。
+ * 変えられるのは 済・確認事項の答え・締め日 だけ（firestore.rules の publicEdit）。
+ * 答えと締め日の変更は events に足し、PCが西村さんの個人トークへ知らせる。
+ */
+const $ = (id) => document.getElementById(id);
+const key = new URLSearchParams(location.search).get("k") || "";
+const db = getFirestore(initializeApp(firebaseConfig));
+const ref = key ? doc(db, "remindTasks", key) : null;
+let t = null;
+const drafts = {};
+
+function say(s, err = false) { $("msg").innerHTML = s ? `<p class="${err ? "err" : "box"}">${esc(s)}</p>` : ""; }
+
+function render() {
+  $("label").textContent = t.status === "done" ? "済" : (t.due ? `締め日 ${dueLabel(t.due)}` : "締め日なし");
+  $("property").textContent = t.property;
+  $("toWho").textContent = `${t.toName}さんへ（${t.roomTitle}）`;
+  $("todoWrap").hidden = !(t.todos || []).length;
+  $("todos").innerHTML = (t.todos || []).map((x) => `<li>${esc(x)}</li>`).join("");
+  $("checkWrap").hidden = !(t.checks || []).length;
+  $("checks").innerHTML = (t.checks || []).map((c, i) => `<div class="card">
+      <div><b>${esc(c.q)}</b></div>
+      ${c.a ? `<div class="qa">送った答え：${esc(c.a)}</div>` : ""}
+      <textarea data-i="${i}" placeholder="答えを入力">${esc(drafts[i] ?? "")}</textarea>
+      <div class="row"><button class="primary" data-send="${i}">${c.a ? "答えを直して送る" : "答えを送る"}</button></div>
+    </div>`).join("");
+  for (const ta of document.querySelectorAll("textarea[data-i]")) ta.addEventListener("input", () => { drafts[ta.dataset.i] = ta.value; });
+  const od = t.status === "open" && isOverdue(t.due);
+  $("dueNow").innerHTML = t.due ? `<b>${esc(dueLabel(t.due))}</b>${od ? ' <span class="tag red">締め日過ぎ</span>' : ""}` : "なし（済になるまで毎朝お知らせします）";
+  $("newDue").value = t.due || "";
+  $("doneArea").innerHTML = t.status === "done"
+    ? `<div class="donebar">済になっています</div><div class="row"><button id="reopen">まだ終わっていない（済を取り消す）</button></div>`
+    : `<button id="done" class="primary big">済にする</button>`;
+  if ($("done")) $("done").addEventListener("click", () => setDone(true));
+  if ($("reopen")) $("reopen").addEventListener("click", () => setDone(false));
+}
+
+async function setDone(done) {
+  const now = new Date().toISOString();
+  try {
+    await updateDoc(ref, { status: done ? "done" : "open", doneAtISO: done ? now : "", updatedAtISO: now });
+    say(done ? "済にしました。ありがとうございます。" : "済を取り消しました。");
+  } catch (e) { say(`できませんでした（${e.code || e.message}）。もう一度押してください。`, true); }
+}
+
+$("checks").addEventListener("click", async (e) => {
+  const b = e.target.closest("button[data-send]");
+  if (!b) return;
+  const i = Number(b.dataset.send), text = String(drafts[i] ?? "").trim();
+  if (!text) return say("答えを入力してください。", true);
+  if (text.length > 500) return say("答えは500字までにしてください。", true);
+  const now = new Date().toISOString();
+  const checks = t.checks.map((c, j) => (j === i ? { q: c.q, a: text, aAtISO: now } : c));
+  const events = [...(t.events || []), { type: "answer", q: t.checks[i].q, text, atISO: now }].slice(-200);
+  b.disabled = true;
+  try {
+    await updateDoc(ref, { checks, events, updatedAtISO: now });
+    delete drafts[i];
+    say("答えを送りました。西村さんに届きます。");
+  } catch (err) { say(`送れませんでした（${err.code || err.message}）。もう一度押してください。`, true); b.disabled = false; }
+});
+
+async function changeDue(next) {
+  if (next === (t.due || "")) return say("今と同じ締め日です。", true);
+  if (next && next < todayStr()) return say("過去の日付にはできません。", true);
+  const now = new Date().toISOString();
+  const dueLog = [...(t.dueLog || []), { from: t.due || "", to: next, atISO: now }].slice(-50);
+  const events = [...(t.events || []), { type: "due", from: t.due || "", to: next, atISO: now }].slice(-200);
+  try {
+    await updateDoc(ref, { due: next, dueLog, events, updatedAtISO: now });
+    say(next ? `締め日を ${dueLabel(next)} に変えました。西村さんに届きます。` : "締め日をなしにしました。西村さんに届きます。");
+  } catch (e) { say(`変えられませんでした（${e.code || e.message}）`, true); }
+}
+$("saveDue").addEventListener("click", () => { const v = $("newDue").value; if (!v) return say("日付を選んでください。", true); changeDue(v); });
+$("noDue").addEventListener("click", () => changeDue(""));
+
+if (!ref) { $("label").textContent = ""; say("リンクが正しくありません。LINE WORKS に届いたボタンから開いてください。", true); }
+else onSnapshot(ref, (snap) => {
+  if (!snap.exists()) { $("label").textContent = ""; $("content").hidden = true; say("このリマインドは見つかりません（取り消された可能性があります）。", true); return; }
+  t = snap.data();
+  $("content").hidden = false;
+  if (document.activeElement && document.activeElement.tagName === "TEXTAREA") return;  // 入力中は描き直さない
+  render();
+}, (e) => { $("label").textContent = ""; say(`読み込めませんでした（${e.code}）`, true); });
+</script>
+</body>
+</html>

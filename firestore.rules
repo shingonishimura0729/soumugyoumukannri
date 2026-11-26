@@ -174,6 +174,89 @@ service cloud.firestore {
       allow list, delete: if false;
     }
 
+    /**
+     * 設計リマインド（remind/）。
+     *
+     *   remindTasks/{鍵}  … 1件のリマインド。鍵は推測できない長さの乱数で、設計共有LINEに貼るリンクに入る
+     *     作る・消す：西村さん（会社のGoogleでログイン）だけ
+     *     見る：鍵を知っている人なら誰でも（部屋の全員が見てよい、と本人が決めた）
+     *     受け手が変えてよいのは 済・確認事項の答え・締め日・その記録 だけ
+     *     PC（lw_report/remind.py。西村マインドと同じ専用アカウント）は送った印と知らせた印を書く
+     *   remindRooms/main   … 相手と部屋の一覧（PCが作る）。見るのは西村さんとPCだけ
+     *   remindPeople/{鍵}  … 人ごとの未済一覧（PCが作る）。毎朝のまとめのリンクで開く
+     */
+    match /remindTasks/{key} {
+      function isOwnerR() {
+        return request.auth != null
+          && request.auth.token.firebase.sign_in_provider == 'google.com'
+          && request.auth.uid == 'BL0a8jFP4jTDnPVjVXRI0k0esr52';
+      }
+      function isPcR() {
+        return request.auth != null && request.auth.uid == '9M3qau8KT9REqhlFV4B7DVTG7yE3';
+      }
+      function shapeOk(d) {
+        return d.keys().hasOnly([
+                 'toName', 'toUserId', 'channelId', 'roomTitle', 'property', 'todos', 'checks',
+                 'due', 'status', 'doneAtISO', 'createdAtISO', 'updatedAtISO',
+                 'sentAtISO', 'sentError', 'dueLog', 'events', 'notified'
+               ])
+          && d.toName is string && d.toName.size() <= 40
+          && d.toUserId is string && d.toUserId.size() <= 64
+          && d.channelId is string && d.channelId.size() <= 64
+          && d.roomTitle is string && d.roomTitle.size() <= 80
+          && d.property is string && d.property.size() >= 1 && d.property.size() <= 100
+          && d.todos is list && d.todos.size() <= 20
+          && d.checks is list && d.checks.size() <= 20
+          && (d.todos.size() + d.checks.size()) >= 1
+          && d.due is string && (d.due.size() == 0 || d.due.size() == 10)
+          && d.status in ['open', 'done']
+          && d.doneAtISO is string && d.doneAtISO.size() <= 32
+          && d.createdAtISO is string && d.createdAtISO.size() <= 32
+          && d.updatedAtISO is string && d.updatedAtISO.size() <= 32
+          && d.sentAtISO is string && d.sentAtISO.size() <= 32
+          && d.sentError is string && d.sentError.size() <= 300
+          && d.dueLog is list && d.dueLog.size() <= 50
+          && d.events is list && d.events.size() <= 200
+          && d.notified is int;
+      }
+      function publicEdit() {
+        let d = request.resource.data;
+        return d.diff(resource.data).affectedKeys()
+                 .hasOnly(['status', 'doneAtISO', 'checks', 'due', 'dueLog', 'events', 'updatedAtISO'])
+          && shapeOk(d)
+          && d.checks.size() == resource.data.checks.size()
+          && d.events.size() >= resource.data.events.size();
+      }
+
+      allow get: if true;
+      allow list: if isOwnerR() || isPcR();
+      allow create: if isOwnerR()
+        && key.size() >= 24 && key.size() <= 48
+        && shapeOk(request.resource.data)
+        && request.resource.data.sentAtISO == ''
+        && request.resource.data.status == 'open'
+        && request.resource.data.notified == 0
+        && request.resource.data.events.size() == 0;
+      allow update: if ((isOwnerR() || isPcR()) && shapeOk(request.resource.data)) || publicEdit();
+      allow delete: if isOwnerR();
+    }
+
+    match /remindRooms/{docId} {
+      allow get: if (request.auth != null
+          && request.auth.token.firebase.sign_in_provider == 'google.com'
+          && request.auth.uid == 'BL0a8jFP4jTDnPVjVXRI0k0esr52')
+        || (request.auth != null && request.auth.uid == '9M3qau8KT9REqhlFV4B7DVTG7yE3');
+      allow create, update: if request.auth != null && request.auth.uid == '9M3qau8KT9REqhlFV4B7DVTG7yE3';
+      allow list, delete: if false;
+    }
+
+    match /remindPeople/{key} {
+      allow get: if true;
+      allow create, update: if request.auth != null && request.auth.uid == '9M3qau8KT9REqhlFV4B7DVTG7yE3'
+        && key.size() >= 24 && key.size() <= 48;
+      allow list, delete: if false;
+    }
+
     // ここに書いていないものは全部拒否
     match /{document=**} {
       allow read, write: if false;
