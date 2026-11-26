@@ -24,6 +24,7 @@
     <nav class="tabs">
       <button id="tabNew" class="tab on">新しく送る</button>
       <button id="tabList" class="tab">一覧</button>
+      <button id="tabRooms" class="tab">トークルーム</button>
     </nav>
 
     <section id="paneNew">
@@ -53,10 +54,29 @@
     </section>
 
     <section id="paneList" hidden>
+      <div class="card quick">
+        <div class="ttl" id="qTitle">かんたん入力</div>
+        <input id="qProp" style="width:100%;margin:6px 0" maxlength="100" placeholder="物件名（今のカードの名前を選ぶと項目を足します）" autocomplete="off" list="qPropList">
+        <datalist id="qPropList"></datalist>
+        <textarea id="qChecks" style="margin-bottom:6px" rows="4" placeholder="確認事項を1行に1つ&#10;例：ｶｰﾎﾟｰﾄ完了検査"></textarea>
+        <div class="tpl" id="qTpl"></div>
+        <button id="qSend" class="primary">送る</button>
+      </div>
       <div class="row">
         <label><input type="checkbox" id="showDone"> 済も表示</label>
       </div>
       <div id="list"></div>
+    </section>
+
+    <section id="paneRooms" hidden>
+      <p class="note">リマインドを送る相手とトークルームです。トークルームIDは LINE WORKS のトークルームの「…」→「トークルーム情報」などで分かる番号です。その部屋に「アーキリマインド」を入れておいてください。部屋の名前は、PC が1〜2分で確かめて埋めます。</p>
+      <div id="roomList"></div>
+      <div class="card">
+        <div class="ttl">トークルームを足す</div>
+        <label class="f">名前（例：永井）<input id="rName" style="width:100%" maxlength="20"></label>
+        <label class="f">トークルームID<input id="rId" style="width:100%" maxlength="64" autocomplete="off"></label>
+        <button id="rAdd" class="primary">足す</button>
+      </div>
     </section>
 
     <p class="note" style="margin-top:30px">ログイン中：<span id="who"></span>　<a href="#" id="logout">ログアウト</a></p>
@@ -98,6 +118,7 @@ function setPerson(id) {
   if ($("to").value !== id) { $("to").value = id; preview(); }
   renderPeople();
   renderList();
+  renderQuick();
 }
 $("people").addEventListener("click", (e) => {
   const b = e.target.closest("button[data-person]");
@@ -120,8 +141,9 @@ const PH_TODO = "例：ブロック数量の拾い出し", PH_CHECK = "例：門
 function existingCard() {
   const to = $("to").value, prop = $("property").value.trim();
   if (!to || !prop) return null;
-  return tasks.find((t) => t.toUserId === to && t.property.trim() === prop) || null;
+  return findCard(to, prop);
 }
+const findCard = (to, prop) => tasks.find((t) => t.toUserId === to && t.property.trim() === prop.trim()) || null;
 
 function preview() {
   const r = rooms.find((x) => x.userId === $("to").value);
@@ -168,45 +190,136 @@ function resetForm() {
   preview();
 }
 
+/** 1件送る（同じ相手・同じ物件のカードがあれば項目を足す）。成功したら知らせの文を返す */
+async function submitTask(r, property, checks, todos, due) {
+  if (!r) throw new Error("相手を選んでください");
+  if (!property) throw new Error("物件名を入れてください");
+  if (!todos.length && !checks.length) throw new Error("確認事項かやることを1つは入れてください");
+  if (due && due < todayStr()) throw new Error("締め日が過去の日付です");
+  const ex = findCard(r.userId, property);
+  const now = new Date().toISOString();
+  if (ex) {
+    const upd = {
+      checks: [...(ex.checks || []), ...checks.map((q) => newItem(q, now))],
+      todos: [...(ex.todos || []), ...todos.map((q) => newItem(q, now))],
+      status: "open", doneAtISO: "", resend: true, updatedAtISO: now,
+    };
+    if (upd.checks.length > 40 || upd.todos.length > 40) throw new Error("1つの物件に入れられる項目は、それぞれ40までです");
+    if (due) upd.due = due;
+    await updateDoc(doc(db, "remindTasks", ex.id), upd);
+    return `「${property}」のカードに ${checks.length + todos.length}項目を足しました。1〜2分で「${r.roomTitle || r.name}」に出ます。`;
+  }
+  await setDoc(doc(db, "remindTasks", newKey()), {
+    toName: r.name, toUserId: r.userId, channelId: r.channelId, roomTitle: r.roomTitle || "",
+    property, todos: todos.map((q) => newItem(q, now)), checks: checks.map((q) => newItem(q, now)),
+    due, status: "open", doneAtISO: "", createdAtISO: now, updatedAtISO: now,
+    sentAtISO: "", sentError: "", resend: false, dueLog: [], events: [], notified: 0,
+  });
+  return `${r.name}さんあてに受け付けました。1〜2分で「${r.roomTitle || r.name}」に出ます。`;
+}
+
 $("send").addEventListener("click", async () => {
   const r = rooms.find((x) => x.userId === $("to").value);
-  const property = $("property").value.trim(), todos = lines("todos"), checks = lines("checks"), due = $("due").value;
-  if (!r) return say("相手を選んでください。", true);
-  if (!property) return say("物件名を入れてください。", true);
-  if (!todos.length && !checks.length) return say("確認事項かやることを1つは入れてください。", true);
-  if (due && due < todayStr()) return say("締め日が過去の日付です。", true);
-  const ex = existingCard();
   $("send").disabled = true;
   try {
-    const now = new Date().toISOString();
-    if (ex) {
-      const upd = {
-        checks: [...(ex.checks || []), ...checks.map((q) => newItem(q, now))],
-        todos: [...(ex.todos || []), ...todos.map((q) => newItem(q, now))],
-        status: "open", doneAtISO: "", resend: true, updatedAtISO: now,
-      };
-      if (upd.checks.length > 40 || upd.todos.length > 40) throw new Error("1つの物件に入れられる項目は、それぞれ40までです");
-      if (due) upd.due = due;
-      await updateDoc(doc(db, "remindTasks", ex.id), upd);
-      say(`「${property}」のカードに ${checks.length + todos.length}項目を足しました。1〜2分で「${r.roomTitle}」に出ます。`);
-    } else {
-      await setDoc(doc(db, "remindTasks", newKey()), {
-        toName: r.name, toUserId: r.userId, channelId: r.channelId, roomTitle: r.roomTitle,
-        property, todos: todos.map((q) => newItem(q, now)), checks: checks.map((q) => newItem(q, now)),
-        due, status: "open", doneAtISO: "", createdAtISO: now, updatedAtISO: now,
-        sentAtISO: "", sentError: "", resend: false, dueLog: [], events: [], notified: 0,
-      });
-      say(`${r.name}さんあてに受け付けました。1〜2分で「${r.roomTitle}」に出ます。`);
-    }
+    say(await submitTask(r, $("property").value.trim(), lines("checks"), lines("todos"), $("due").value));
     resetForm();
   } catch (e) {
-    say(`送れませんでした（${e.code || e.message}）。もう一度押してください。`, true);
+    say(`送れませんでした（${e.code || e.message}）`, true);
   } finally { $("send").disabled = false; }
 });
 
-function say(t, err = false) {
-  $("msg").innerHTML = `<p class="${err ? "err" : "box"}">${esc(t)}</p>`;
-  window.scrollTo({ top: 0, behavior: "smooth" });
+/* ---------- 一覧のかんたん入力（物件名＋確認事項だけ） ---------- */
+const qLines = () => [...new Set($("qChecks").value.split(/\r?\n/).map((s) => s.trim()).filter(Boolean))];
+function renderQuick() {
+  const r = rooms.find((x) => x.userId === person);
+  $("qTitle").textContent = r ? `かんたん入力（${r.name}さんへ）` : "かんたん入力";
+  $("qPropList").innerHTML = tasks.filter((t) => r && t.toUserId === r.userId)
+    .map((t) => `<option value="${esc(t.property)}"></option>`).join("");
+}
+$("qTpl").innerHTML = TEMPLATE_CHECKS.map((q, i) => `<button type="button" data-q="${i}">＋${esc(q)}</button>`).join("");
+$("qTpl").addEventListener("click", (e) => {
+  const b = e.target.closest("button[data-q]");
+  if (!b) return;
+  const q = TEMPLATE_CHECKS[Number(b.dataset.q)], have = qLines();
+  if (!have.includes(q)) $("qChecks").value = [...have, q].join("\n");
+});
+$("qSend").addEventListener("click", async () => {
+  const r = rooms.find((x) => x.userId === person);
+  $("qSend").disabled = true;
+  try {
+    say(await submitTask(r, $("qProp").value.trim(), qLines(), [], ""));
+    $("qProp").value = ""; $("qChecks").value = "";
+  } catch (e) {
+    say(`送れませんでした（${e.code || e.message}）`, true);
+  } finally { $("qSend").disabled = false; }
+});
+
+/* ---------- トークルームの編集（remindRooms/main を西村さんが書く。消した部屋は removed に残し、PCの自動探しで戻さない） ---------- */
+const ROOM_ID_RE = /^[A-Za-z0-9_-]{6,64}$/;
+function renderRooms() {
+  $("roomList").innerHTML = rooms.length ? rooms.map((r, i) => `<div class="card">
+      <label class="f">名前<input data-rname="${i}" maxlength="20" value="${esc(r.name)}"></label>
+      <label class="f">トークルームID<input data-rid="${i}" maxlength="64" value="${esc(r.channelId)}"></label>
+      <div class="sub">部屋の名前：${r.roomTitle ? esc(r.roomTitle) : "（PCが確かめ中）"}${r.roomError ? ` <span class="tag red">${esc(r.roomError)}</span>` : ""}</div>
+      <div class="row"><button data-rsave="${i}" class="primary">保存</button><button data-rdel="${i}" class="danger">削除</button></div>
+    </div>`).join("") : "<p>まだ登録がありません。</p>";
+}
+async function saveRooms(next, removed) {
+  await setDoc(doc(db, "remindRooms", "main"), { rooms: next, removed: removed.slice(-200), updatedAtISO: new Date().toISOString() }, { merge: true });
+  rooms = next;
+  renderPeople(); renderRooms(); renderQuick(); refreshTo(); renderList();
+}
+async function loadRemoved() {
+  const s = await getDoc(doc(db, "remindRooms", "main"));
+  return s.exists() ? (s.data().removed || []) : [];
+}
+$("roomList").addEventListener("click", async (e) => {
+  const sv = e.target.closest("button[data-rsave]"), dl = e.target.closest("button[data-rdel]");
+  try {
+    if (sv) {
+      const i = Number(sv.dataset.rsave), r = rooms[i];
+      const name = document.querySelector(`[data-rname="${i}"]`).value.trim();
+      const ch = document.querySelector(`[data-rid="${i}"]`).value.trim();
+      if (!name) return say("名前を入れてください。", true);
+      if (!ROOM_ID_RE.test(ch)) return say("トークルームIDの形が違います（英数字と - だけ）。", true);
+      if (rooms.some((x, j) => j !== i && x.channelId === ch)) return say("そのトークルームIDは、もう登録されています。", true);
+      const changed = ch !== r.channelId;
+      const next = rooms.map((x, j) => (j === i ? { ...x, name, channelId: ch, ...(changed ? { roomTitle: "", roomError: "", checkedAtISO: "", manual: true } : {}) } : x));
+      const removed = (await loadRemoved()).filter((x) => x !== ch);
+      if (changed) removed.push(r.channelId);
+      await saveRooms(next, removed);
+      say(`「${name}」を保存しました。${changed ? "トークルームはPCが1〜2分で確かめます。" : ""}`);
+    }
+    if (dl) {
+      const i = Number(dl.dataset.rdel), r = rooms[i];
+      const open = tasks.filter((t) => t.toUserId === r.userId && t.status === "open").length;
+      if (!confirm(`「${r.name}」（${r.roomTitle || r.channelId}）を削除します。${open ? `\n未済のカードが ${open}件あり、そのカードの知らせも止まります。` : ""}\nよろしいですか？`)) return;
+      const removed = [...(await loadRemoved()).filter((x) => x !== r.channelId), r.channelId];
+      await saveRooms(rooms.filter((_, j) => j !== i), removed);
+      say(`「${r.name}」を削除しました。`);
+    }
+  } catch (err) { say(`できませんでした（${err.code || err.message}）`, true); }
+});
+$("rAdd").addEventListener("click", async () => {
+  const name = $("rName").value.trim(), ch = $("rId").value.trim();
+  if (!name) return say("名前を入れてください。", true);
+  if (!ROOM_ID_RE.test(ch)) return say("トークルームIDの形が違います（英数字と - だけ）。", true);
+  if (rooms.some((x) => x.channelId === ch)) return say("そのトークルームIDは、もう登録されています。", true);
+  try {
+    const r = { name, userId: "ch-" + ch, channelId: ch, roomTitle: "", roomError: "", pageKey: newKey(), manual: true, checkedAtISO: "" };
+    await saveRooms([...rooms, r], (await loadRemoved()).filter((x) => x !== ch));
+    $("rName").value = ""; $("rId").value = "";
+    say(`「${name}」を足しました。PCが1〜2分でトークルームを確かめます。`);
+  } catch (err) { say(`足せませんでした（${err.code || err.message}）`, true); }
+});
+
+function refreshTo() {
+  $("to").innerHTML = rooms.length
+    ? rooms.map((r) => `<option value="${esc(r.userId)}">${esc(r.name)}さん（${esc(r.roomTitle || r.channelId)}）</option>`).join("")
+    : '<option value="">（送れる相手がまだいません）</option>';
+  if (person) $("to").value = person;
+  preview();
 }
 
 /* ---------- 一覧（人 → 物件） ---------- */
@@ -247,6 +360,7 @@ function renderList() {
         <div class="row">
           <a class="btnlike" href="${esc(taskUrl(t.id))}" target="_blank" rel="noopener">開く</a>
           ${t.status === "open" ? "" : `<button data-act="reopen" data-id="${esc(t.id)}">未済に戻す</button>`}
+          ${t.status === "open" ? `<button data-act="quick" data-id="${esc(t.id)}">＋確認事項</button>` : ""}
           <button data-act="del" data-id="${esc(t.id)}" class="danger">消す</button>
         </div>
       </div>`;
@@ -269,6 +383,13 @@ $("list").addEventListener("click", async (e) => {
     }
     if (!b) return;
     const id = b.dataset.id;
+    if (b.dataset.act === "quick") {   // このカードに足す：かんたん入力に物件名を入れて、確認事項の欄へ
+      const t = tasks.find((x) => x.id === id);
+      $("qProp").value = t ? t.property : "";
+      $("qChecks").scrollIntoView({ behavior: "smooth", block: "center" });
+      $("qChecks").focus();
+      return;
+    }
     if (b.dataset.act === "reopen") await updateDoc(doc(db, "remindTasks", id), { status: "open", doneAtISO: "", updatedAtISO: now });
     if (b.dataset.act === "del") {
       const t = tasks.find((x) => x.id === id);
@@ -280,11 +401,13 @@ $("list").addEventListener("click", async (e) => {
 
 /* ---------- 切り替え・ログイン ---------- */
 function tab(which) {
-  $("paneNew").hidden = which !== "new"; $("paneList").hidden = which !== "list";
+  $("paneNew").hidden = which !== "new"; $("paneList").hidden = which !== "list"; $("paneRooms").hidden = which !== "rooms";
   $("tabNew").classList.toggle("on", which === "new"); $("tabList").classList.toggle("on", which === "list");
+  $("tabRooms").classList.toggle("on", which === "rooms");
   $("msg").innerHTML = "";
 }
 $("tabNew").addEventListener("click", () => tab("new"));
+$("tabRooms").addEventListener("click", () => tab("rooms"));
 $("tabList").addEventListener("click", () => tab("list"));
 
 $("loginBtn").addEventListener("click", async () => {
@@ -309,22 +432,30 @@ onAuthStateChanged(auth, async (user) => {
       : `<p class="err">読み込めませんでした（${esc(e.code)}）</p>`;
     return;
   }
-  $("to").innerHTML = rooms.length
-    ? rooms.map((r) => `<option value="${esc(r.userId)}">${esc(r.name)}さん（${esc(r.roomTitle)}）</option>`).join("")
-    : '<option value="">（送れる相手がまだいません）</option>';
   renderPeople();
-  if (person) $("to").value = person;
-  if (!$("todos").children.length) resetForm(); else preview();
+  refreshTo();
+  renderRooms(); renderQuick();
+  if (!$("todos").children.length) resetForm();
   $("content").hidden = false;
   $("label").textContent = `送れる相手 ${rooms.length}人`;
-  unsub = onSnapshot(collection(db, "remindTasks"), (qs) => {
+  const u1 = onSnapshot(collection(db, "remindTasks"), (qs) => {
     tasks = qs.docs.map((d) => ({ id: d.id, ...d.data() }));
     const open = tasks.filter((t) => t.status === "open").length;
     $("tabList").textContent = `一覧（未済 ${open}）`;
     renderPeople();
     renderList();
+    renderQuick();
     preview();
   }, (e) => { $("list").innerHTML = `<p class="err">一覧を読めませんでした（${esc(e.code)}）</p>`; });
+  // PC が部屋の名前を確かめて埋めたら、すぐ画面にも出す（入力中の欄は描き直さない）
+  const u2 = onSnapshot(doc(db, "remindRooms", "main"), (s) => {
+    rooms = s.exists() ? (s.data().rooms || []) : [];
+    $("label").textContent = `送れる相手 ${rooms.length}人`;
+    renderPeople(); renderQuick();
+    const a = document.activeElement;
+    if (!(a && a.closest && a.closest("#paneRooms, #paneNew"))) { renderRooms(); refreshTo(); }
+  });
+  unsub = () => { u1(); u2(); };
 });
 </script>
 </body>
