@@ -6,6 +6,14 @@
 <meta name="robots" content="noindex, nofollow">
 <title>設計リマインド</title>
 <link rel="stylesheet" href="remind.css?v=2">
+<style>
+.qhead, .qrow { display: grid; grid-template-columns: 1fr 150px 32px 36px; gap: 6px; align-items: center; }
+.qhead { font-size: 12px; color: #666; margin-top: 6px; }
+.qrow { margin: 4px 0; }
+.qrow input.qn, .qrow input.qd { width: 100%; min-width: 0; }
+.qrow input.qc { width: 24px; height: 24px; justify-self: center; }
+@media (max-width: 480px) { .qhead, .qrow { grid-template-columns: 1fr 128px 28px 32px; } .qrow input.qd { font-size: 14px; padding: 8px 4px; } }
+</style>
 </head>
 <body>
 <header>
@@ -22,12 +30,11 @@
   <div id="content" hidden>
     <nav class="tabs people" id="people"></nav>
     <nav class="tabs">
-      <button id="tabNew" class="tab on">新しく送る</button>
-      <button id="tabList" class="tab">一覧</button>
+      <button id="tabList" class="tab on">一覧</button>
       <button id="tabRooms" class="tab">トークルーム</button>
     </nav>
 
-    <section id="paneNew">
+    <section id="paneNew" hidden><!-- 11-26 本人指示で使わない（一覧の作成欄に一本化） -->
       <label class="f">相手
         <select id="to"></select>
         <span class="note" id="roomNote"></span>
@@ -53,14 +60,17 @@
       <button id="send" class="primary big">設計共有LINEへ送る</button>
     </section>
 
-    <section id="paneList" hidden>
+    <section id="paneList">
       <div class="card quick">
-        <div class="ttl" id="qTitle">かんたん入力</div>
-        <input id="qProp" style="width:100%;margin:6px 0" maxlength="100" placeholder="物件名（今のカードの名前を選ぶと項目を足します）" autocomplete="off" list="qPropList">
+        <div class="ttl" id="qTitle">作成</div>
+        <input id="qProp" style="width:100%;margin:6px 0" maxlength="100" placeholder="物件名（今の物件を選ぶと、そのカードを直せます）" autocomplete="off" list="qPropList">
         <datalist id="qPropList"></datalist>
-        <textarea id="qChecks" style="margin-bottom:6px" rows="4" placeholder="確認事項を1行に1つ&#10;例：ｶｰﾎﾟｰﾄ完了検査"></textarea>
+        <div class="note" id="qNote"></div>
+        <div class="qhead"><span>タスク名</span><span>実行日</span><span>済</span><span></span></div>
+        <div id="qRows"></div>
+        <div class="row"><button type="button" id="qAddRow">＋ 行を追加</button></div>
         <div class="tpl" id="qTpl"></div>
-        <button id="qSend" class="primary">送る</button>
+        <div class="row"><button id="qSend" class="primary">作成</button><button type="button" id="qClear">クリア</button></div>
       </div>
       <div class="row">
         <label><input type="checkbox" id="showDone"> 済も表示</label>
@@ -118,6 +128,7 @@ function setPerson(id) {
   if ($("to").value !== id) { $("to").value = id; preview(); }
   renderPeople();
   renderList();
+  qClear();
   renderQuick();
 }
 $("people").addEventListener("click", (e) => {
@@ -229,29 +240,103 @@ $("send").addEventListener("click", async () => {
   } finally { $("send").disabled = false; }
 });
 
-/* ---------- 一覧のかんたん入力（物件名＋確認事項だけ） ---------- */
-const qLines = () => [...new Set($("qChecks").value.split(/\r?\n/).map((s) => s.trim()).filter(Boolean))];
+/* ---------- 一覧の上の作成欄：物件名 ＋「タスク名・実行日・チェック」の行（追加・削除できる） ----------
+ * 今ある物件名を選ぶと、そのカードの行を読み込んで直せる（行を消す・日付を変える・チェック）。
+ * 行は checks に入れる（実行日＝date、チェック＝done）。足した行があるときだけ部屋へ知らせる（resend）。 */
+let qCard = null;   // 読み込んでいるカード（無ければ新しく作る）
+function qRowHtml(it = {}, i = "") {
+  return `<div class="qrow" data-i="${i}">
+    <input class="qn" maxlength="200" placeholder="タスク名" value="${esc(it.q || "")}">
+    <input class="qd" type="date" value="${esc(it.date || "")}" aria-label="実行日">
+    <input class="qc" type="checkbox" ${it.done ? "checked" : ""} aria-label="済">
+    <button type="button" class="x" title="この行を消す">×</button>
+  </div>`;
+}
+function qAddRow(it) { $("qRows").insertAdjacentHTML("beforeend", qRowHtml(it)); }
+function qLoad() {
+  const r = rooms.find((x) => x.userId === person);
+  const prop = $("qProp").value.trim();
+  const ex = r && prop ? findCard(r.userId, prop) : null;
+  if (ex === qCard && $("qRows").children.length) return;
+  qCard = ex;
+  $("qRows").innerHTML = ex ? (ex.checks || []).map((c, i) => qRowHtml(c, i)).join("") : "";
+  if (!$("qRows").children.length) qAddRow();
+  $("qSend").textContent = ex ? "保存（このカードを直す）" : "作成";
+  $("qNote").textContent = ex
+    ? `この物件のカードを読み込みました。直して「保存」を押してください。${ex.status === "done" ? "（済のカードです）" : ""}`
+    : "";
+}
+function qClear() { $("qProp").value = ""; qCard = null; $("qRows").innerHTML = ""; qLoad(); }
 function renderQuick() {
   const r = rooms.find((x) => x.userId === person);
-  $("qTitle").textContent = r ? `かんたん入力（${r.name}さんへ）` : "かんたん入力";
+  $("qTitle").textContent = r ? `作成（${r.name}さんへ）` : "作成";
   $("qPropList").innerHTML = tasks.filter((t) => r && t.toUserId === r.userId)
     .map((t) => `<option value="${esc(t.property)}"></option>`).join("");
+  if (qCard && !tasks.some((t) => t.id === qCard.id)) qClear();   // 読み込んでいたカードが消された
+  if (!$("qRows").children.length) qLoad();
 }
+$("qProp").addEventListener("change", qLoad);
+$("qAddRow").addEventListener("click", () => qAddRow());
+$("qClear").addEventListener("click", qClear);
+$("qRows").addEventListener("click", (e) => {
+  const x = e.target.closest("button.x");
+  if (!x) return;
+  x.closest(".qrow").remove();
+  if (!$("qRows").children.length) qAddRow();
+});
 $("qTpl").innerHTML = TEMPLATE_CHECKS.map((q, i) => `<button type="button" data-q="${i}">＋${esc(q)}</button>`).join("");
 $("qTpl").addEventListener("click", (e) => {
   const b = e.target.closest("button[data-q]");
   if (!b) return;
-  const q = TEMPLATE_CHECKS[Number(b.dataset.q)], have = qLines();
-  if (!have.includes(q)) $("qChecks").value = [...have, q].join("\n");
+  const q = TEMPLATE_CHECKS[Number(b.dataset.q)];
+  const rows = [...$("qRows").querySelectorAll(".qrow")];
+  if (rows.some((w) => w.querySelector(".qn").value.trim() === q)) return;
+  const empty = rows.find((w) => !w.querySelector(".qn").value.trim());
+  if (empty) empty.querySelector(".qn").value = q; else qAddRow({ q });
 });
 $("qSend").addEventListener("click", async () => {
   const r = rooms.find((x) => x.userId === person);
+  const property = $("qProp").value.trim();
+  if (!r) return say("相手を選んでください（上の名前のボタン）。", true);
+  if (!property) return say("物件名を入れてください。", true);
+  const now = new Date().toISOString();
+  const ex = qCard && tasks.find((t) => t.id === qCard.id);
+  let added = 0;
+  const items = [...$("qRows").querySelectorAll(".qrow")].map((w) => {
+    const q = w.querySelector(".qn").value.trim();
+    if (!q) return null;
+    const date = w.querySelector(".qd").value, done = w.querySelector(".qc").checked;
+    const orig = ex && w.dataset.i !== "" ? (ex.checks || [])[Number(w.dataset.i)] : null;
+    if (orig) return { ...orig, q, date, done };
+    added++;
+    return { ...newItem(q, now), date, done };
+  }).filter(Boolean);
+  if (!items.length && !(ex && (ex.todos || []).length)) {
+    return say(ex ? "行が1つもありません。カードごと消すときは、下の一覧の「消す」を押してください。" : "タスク名を1つは入れてください。", true);
+  }
+  if (items.length > 40) return say("1つの物件に入れられる行は40までです。", true);
   $("qSend").disabled = true;
   try {
-    say(await submitTask(r, $("qProp").value.trim(), qLines(), [], ""));
-    $("qProp").value = ""; $("qChecks").value = "";
+    if (ex) {
+      const st = allDone({ ...ex, checks: items }) ? "done" : "open";
+      await updateDoc(doc(db, "remindTasks", ex.id), {
+        property, checks: items, status: st, doneAtISO: st === "done" ? (ex.doneAtISO || now) : "",
+        resend: added > 0 ? true : !!ex.resend, updatedAtISO: now,
+      });
+      say(`「${property}」を保存しました。${added ? `足した ${added}行は1〜2分で「${r.roomTitle || r.name}」に出ます。` : ""}`);
+    } else {
+      if (findCard(r.userId, property)) return say("同じ物件名のカードがあります。物件名を選び直してください。", true);
+      await setDoc(doc(db, "remindTasks", newKey()), {
+        toName: r.name, toUserId: r.userId, channelId: r.channelId, roomTitle: r.roomTitle || "",
+        property, todos: [], checks: items,
+        due: "", status: "open", doneAtISO: "", createdAtISO: now, updatedAtISO: now,
+        sentAtISO: "", sentError: "", resend: false, dueLog: [], events: [], notified: 0,
+      });
+      say(`「${property}」を作成しました。1〜2分で「${r.roomTitle || r.name}」に出ます。`);
+    }
+    qClear();
   } catch (e) {
-    say(`送れませんでした（${e.code || e.message}）`, true);
+    say(`できませんでした（${e.code || e.message}）`, true);
   } finally { $("qSend").disabled = false; }
 });
 
@@ -365,7 +450,7 @@ function renderList() {
         <div class="row">
           <a class="btnlike" href="${esc(taskUrl(t.id))}" target="_blank" rel="noopener">開く</a>
           ${t.status === "open" ? "" : `<button data-act="reopen" data-id="${esc(t.id)}">未済に戻す</button>`}
-          ${t.status === "open" ? `<button data-act="quick" data-id="${esc(t.id)}">＋確認事項</button>` : ""}
+          <button data-act="quick" data-id="${esc(t.id)}">編集</button>
           <button data-act="del" data-id="${esc(t.id)}" class="danger">消す</button>
         </div>
       </div>`;
@@ -388,11 +473,11 @@ $("list").addEventListener("click", async (e) => {
     }
     if (!b) return;
     const id = b.dataset.id;
-    if (b.dataset.act === "quick") {   // このカードに足す：かんたん入力に物件名を入れて、確認事項の欄へ
+    if (b.dataset.act === "quick") {   // このカードを上の作成欄に読み込んで直す
       const t = tasks.find((x) => x.id === id);
-      $("qProp").value = t ? t.property : "";
-      $("qChecks").scrollIntoView({ behavior: "smooth", block: "center" });
-      $("qChecks").focus();
+      if (!t) return;
+      $("qProp").value = t.property; qCard = null; $("qRows").innerHTML = ""; qLoad();
+      $("qProp").scrollIntoView({ behavior: "smooth", block: "start" });
       return;
     }
     if (b.dataset.act === "reopen") await updateDoc(doc(db, "remindTasks", id), { status: "open", doneAtISO: "", updatedAtISO: now });
@@ -406,12 +491,11 @@ $("list").addEventListener("click", async (e) => {
 
 /* ---------- 切り替え・ログイン ---------- */
 function tab(which) {
-  $("paneNew").hidden = which !== "new"; $("paneList").hidden = which !== "list"; $("paneRooms").hidden = which !== "rooms";
-  $("tabNew").classList.toggle("on", which === "new"); $("tabList").classList.toggle("on", which === "list");
+  $("paneNew").hidden = true; $("paneList").hidden = which !== "list"; $("paneRooms").hidden = which !== "rooms";
+  $("tabList").classList.toggle("on", which === "list");
   $("tabRooms").classList.toggle("on", which === "rooms");
   $("msg").innerHTML = "";
 }
-$("tabNew").addEventListener("click", () => tab("new"));
 $("tabRooms").addEventListener("click", () => tab("rooms"));
 $("tabList").addEventListener("click", () => tab("list"));
 
