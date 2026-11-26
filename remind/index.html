@@ -7,12 +7,24 @@
 <title>設計リマインド</title>
 <link rel="stylesheet" href="remind.css?v=2">
 <style>
-.qhead, .qrow { display: grid; grid-template-columns: 1fr 150px 32px 36px; gap: 6px; align-items: center; }
-.qhead { font-size: 12px; color: #666; margin-top: 6px; }
-.qrow { margin: 4px 0; }
-.qrow input.qn, .qrow input.qd { width: 100%; min-width: 0; }
-.qrow input.qc { width: 24px; height: 24px; justify-self: center; }
-@media (max-width: 480px) { .qhead, .qrow { grid-template-columns: 1fr 128px 28px 32px; } .qrow input.qd { font-size: 14px; padding: 8px 4px; } }
+.qrow { border: 1px solid #ddd; border-radius: 10px; padding: 8px; margin: 8px 0; background: #fafaf7; }
+.qrow input.qn { width: 100%; box-sizing: border-box; font-size: 17px; }
+.qline { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 8px; }
+.qline input.qd { flex: 1 1 150px; min-width: 0; }
+.qline .qck { display: inline-flex; align-items: center; gap: 4px; font-size: 16px; white-space: nowrap; }
+.qline .qck input { width: 26px; height: 26px; }
+.qline button { padding: 8px 10px; white-space: nowrap; }
+.tplbar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 8px 0; }
+.tplbar .lbl { font-size: 12px; color: #666; width: 100%; }
+#tplEdit { border: 1px dashed #aaa; border-radius: 10px; padding: 8px; margin: 6px 0; }
+#tplEdit .te { display: flex; gap: 6px; align-items: center; margin: 4px 0; }
+#tplEdit .te span { flex: 1; }
+#tplEdit .te input { flex: 1; min-width: 0; }
+@media (max-width: 480px) {
+  main { padding-left: 10px; padding-right: 10px; }
+  .card { padding: 10px; }
+  .it { font-size: 15px; }
+}
 </style>
 </head>
 <body>
@@ -66,10 +78,10 @@
         <input id="qProp" style="width:100%;margin:6px 0" maxlength="100" placeholder="物件名（今の物件を選ぶと、そのカードを直せます）" autocomplete="off" list="qPropList">
         <datalist id="qPropList"></datalist>
         <div class="note" id="qNote"></div>
-        <div class="qhead"><span>タスク名</span><span>実行日</span><span>済</span><span></span></div>
         <div id="qRows"></div>
         <div class="row"><button type="button" id="qAddRow">＋ 行を追加</button></div>
-        <div class="tpl" id="qTpl"></div>
+        <div class="tplbar" id="qTpl"></div>
+        <div id="tplEdit" hidden></div>
         <div class="row"><button id="qSend" class="primary">作成</button><button type="button" id="qClear">クリア</button></div>
       </div>
       <div class="row">
@@ -247,9 +259,12 @@ let qCard = null;   // 読み込んでいるカード（無ければ新しく作
 function qRowHtml(it = {}, i = "") {
   return `<div class="qrow" data-i="${i}">
     <input class="qn" maxlength="200" placeholder="タスク名" value="${esc(it.q || "")}">
-    <input class="qd" type="date" value="${esc(it.date || "")}" aria-label="実行日">
-    <input class="qc" type="checkbox" ${it.done ? "checked" : ""} aria-label="済">
-    <button type="button" class="x" title="この行を消す">×</button>
+    <div class="qline">
+      <input class="qd" type="date" value="${esc(it.date || "")}" aria-label="実行日">
+      <button type="button" class="qdc">日付クリア</button>
+      <label class="qck"><input class="qc" type="checkbox" ${it.done ? "checked" : ""}>済</label>
+      <button type="button" class="x danger">削除</button>
+    </div>
   </div>`;
 }
 function qAddRow(it) { $("qRows").insertAdjacentHTML("beforeend", qRowHtml(it)); }
@@ -279,21 +294,55 @@ $("qProp").addEventListener("change", qLoad);
 $("qAddRow").addEventListener("click", () => qAddRow());
 $("qClear").addEventListener("click", qClear);
 $("qRows").addEventListener("click", (e) => {
+  const c = e.target.closest("button.qdc");
+  if (c) { c.closest(".qrow").querySelector(".qd").value = ""; return; }
   const x = e.target.closest("button.x");
   if (!x) return;
   x.closest(".qrow").remove();
   if (!$("qRows").children.length) qAddRow();
 });
-$("qTpl").innerHTML = TEMPLATE_CHECKS.map((q, i) => `<button type="button" data-q="${i}">＋${esc(q)}</button>`).join("");
+let templates = null;   // null＝まだ保存していない → 最初のひな形5つ
+const tplList = () => (Array.isArray(templates) ? templates : TEMPLATE_CHECKS);
+function renderTpl() {
+  const list = tplList();
+  $("qTpl").innerHTML = `<span class="lbl">よく使う項目（押すと行に入ります）</span>` +
+    list.map((q, i) => `<button type="button" data-q="${i}">＋${esc(q)}</button>`).join("") +
+    `<button type="button" id="tplToggle">${$("tplEdit").hidden ? "✎ 編集" : "編集を閉じる"}</button>`;
+  if (!$("tplEdit").hidden) {
+    $("tplEdit").innerHTML = list.map((q, i) => `<div class="te"><span>${esc(q)}</span><button type="button" class="danger" data-tdel="${i}">削除</button></div>`).join("") +
+      `<div class="te"><input id="tplNew" maxlength="40" placeholder="足す項目（例：境界確認）"><button type="button" id="tplAdd" class="primary">足す</button></div>`;
+  }
+}
+async function saveTemplates(next) {
+  try {
+    await setDoc(doc(db, "remindRooms", "main"), { templates: next, updatedAtISO: new Date().toISOString() }, { merge: true });
+    templates = next;
+    renderTpl();
+  } catch (e) { say(`よく使う項目を保存できませんでした（${e.code || e.message}）`, true); }
+}
 $("qTpl").addEventListener("click", (e) => {
+  if (e.target.closest("#tplToggle")) { $("tplEdit").hidden = !$("tplEdit").hidden; renderTpl(); return; }
   const b = e.target.closest("button[data-q]");
   if (!b) return;
-  const q = TEMPLATE_CHECKS[Number(b.dataset.q)];
+  const q = tplList()[Number(b.dataset.q)];
   const rows = [...$("qRows").querySelectorAll(".qrow")];
   if (rows.some((w) => w.querySelector(".qn").value.trim() === q)) return;
   const empty = rows.find((w) => !w.querySelector(".qn").value.trim());
   if (empty) empty.querySelector(".qn").value = q; else qAddRow({ q });
 });
+$("tplEdit").addEventListener("click", (e) => {
+  const d = e.target.closest("button[data-tdel]");
+  if (d) { const list = [...tplList()]; list.splice(Number(d.dataset.tdel), 1); saveTemplates(list); return; }
+  if (e.target.closest("#tplAdd")) {
+    const q = $("tplNew").value.trim();
+    if (!q) return;
+    if (tplList().includes(q)) return say("その項目はもうあります。", true);
+    if (tplList().length >= 30) return say("よく使う項目は30までです。", true);
+    saveTemplates([...tplList(), q]);
+  }
+});
+renderTpl();
+
 $("qSend").addEventListener("click", async () => {
   const r = rooms.find((x) => x.userId === person);
   const property = $("qProp").value.trim();
@@ -436,13 +485,12 @@ function renderList() {
     const openItems = arr.reduce((n, t) => n + [...(t.checks || []), ...(t.todos || [])].filter((x) => !x.done).length, 0);
     html += `<h2>${esc(name)}さん（物件 ${arr.filter((t) => t.status === "open").length}件・未確定 ${openItems}項目）</h2>`;
     for (const t of arr) {
-      const od = t.status === "open" && isOverdue(t.due);
+      const od = false;   // 締め日は使わない（項目の日付でお知らせ）
       const sent = t.sentError ? `<span class="tag red">送れていない：${esc(t.sentError)}</span>`
         : (!t.sentAtISO || t.resend) ? '<span class="tag">送信待ち</span>' : "";
       const checks = t.checks || [], todos = t.todos || [];
       html += `<div class="card ${t.status === "done" ? "done" : ""} ${od ? "over" : ""}">
         <div class="ttl">${esc(t.property)} ${t.status === "done" ? '<span class="tag green">済</span>' : ""} ${od ? '<span class="tag red">締め日過ぎ</span>' : ""} ${sent}</div>
-        <div class="sub">締め日：${t.due ? esc(dueLabel(t.due)) : "なし"}${(t.dueLog || []).length ? `（変更 ${t.dueLog.length}回）` : ""}</div>
         <div class="items">
           ${checks.length ? `<h3>確認事項</h3>${checks.map((c, i) => itemRow(t, "checks", c, i)).join("")}` : ""}
           ${todos.length ? `<h3>やること</h3>${todos.map((c, i) => itemRow(t, "todos", c, i)).join("")}` : ""}
@@ -539,6 +587,8 @@ onAuthStateChanged(auth, async (user) => {
   // PC が部屋の名前を確かめて埋めたら、すぐ画面にも出す（入力中の欄は描き直さない）
   const u2 = onSnapshot(doc(db, "remindRooms", "main"), (s) => {
     rooms = s.exists() ? (s.data().rooms || []) : [];
+    templates = s.exists() && Array.isArray(s.data().templates) ? s.data().templates : null;
+    if (!(document.activeElement && document.activeElement.id === "tplNew")) renderTpl();
     $("label").textContent = `送れる相手 ${rooms.length}人`;
     renderPeople(); renderQuick();
     const a = document.activeElement;

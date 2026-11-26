@@ -26,14 +26,7 @@
 
     <div id="todoWrap"><h2>やること</h2><div id="todos"></div></div>
 
-    <h2>締め日</h2>
-    <div id="dueNow"></div>
-    <div class="row">
-      <input type="date" id="newDue">
-      <button id="saveDue">締め日を変える</button>
-      <button id="noDue">締め日なしにする</button>
-    </div>
-    <p class="note">締め日を変えると、西村さんにも知らせが届きます。</p>
+    <p class="note">日付の前日と当日の朝にお知らせします。日付が決まっていないものは、決まるまで毎朝お知らせします。</p>
 
     <h2>まとめて</h2>
     <div id="doneArea"></div>
@@ -49,7 +42,7 @@ import { esc, todayStr, dueLabel, isOverdue, allDone } from "./remind.js?v=2";
 /*
  * 受け手が開く1件（1物件）の画面。ログインなし・リンクの鍵（?k=）で開く。
  * 変えられるのは 項目の■・確認事項の日付とひとこと・締め日・済 だけ（firestore.rules の publicEdit）。
- * 確認事項の保存と締め日の変更は events に足し、PCが西村さんの個人トークへ知らせる。■は知らせない。
+ * 確認事項の保存は events に足し、PCが西村さんの個人トークへ知らせる。■は知らせない。
  * 項目が全部■になったらカードは自動で「済」、1つでも□に戻れば「未済」。
  */
 const $ = (id) => document.getElementById(id);
@@ -65,7 +58,7 @@ function say(s, err = false) {
 }
 
 function render() {
-  $("label").textContent = t.status === "done" ? "済" : (t.due ? `締め日 ${dueLabel(t.due)}` : "締め日なし");
+  $("label").textContent = t.status === "done" ? "済" : "未済";
   $("property").textContent = t.property;
   $("toWho").textContent = `${t.toName}さんへ（${t.roomTitle}）`;
 
@@ -91,9 +84,6 @@ function render() {
       <input type="checkbox" data-kind="todos" data-i="${i}" ${x.done ? "checked" : ""}>
       <div class="body">${esc(x.q)}</div></label>`).join("");
 
-  const od = t.status === "open" && isOverdue(t.due);
-  $("dueNow").innerHTML = t.due ? `<b>${esc(dueLabel(t.due))}</b>${od ? ' <span class="tag red">締め日過ぎ</span>' : ""}` : "なし（済になるまで毎朝お知らせします）";
-  $("newDue").value = t.due || "";
   $("doneArea").innerHTML = t.status === "done"
     ? `<div class="donebar">済になっています</div><div class="row"><button id="reopen">まだ終わっていない（済を取り消す）</button></div>`
     : `<button id="done" class="primary big">全部終わった（済にする）</button>`;
@@ -159,20 +149,6 @@ $("checks").addEventListener("click", async (e) => {
     say(`「${c.q}」を保存しました。西村さんに届きます。`);
   } catch (err) { say(`保存できませんでした（${err.code || err.message}）。もう一度押してください。`, true); b.disabled = false; }
 });
-
-async function changeDue(next) {
-  if (next === (t.due || "")) return say("今と同じ締め日です。", true);
-  if (next && next < todayStr()) return say("過去の日付にはできません。", true);
-  const n = now();
-  const dueLog = [...(t.dueLog || []), { from: t.due || "", to: next, atISO: n }].slice(-50);
-  const events = [...(t.events || []), { type: "due", from: t.due || "", to: next, atISO: n }].slice(-200);
-  try {
-    await updateDoc(ref, { due: next, dueLog, events, updatedAtISO: n });
-    say(next ? `締め日を ${dueLabel(next)} に変えました。西村さんに届きます。` : "締め日をなしにしました。西村さんに届きます。");
-  } catch (e) { say(`変えられませんでした（${e.code || e.message}）`, true); }
-}
-$("saveDue").addEventListener("click", () => { const v = $("newDue").value; if (!v) return say("日付を選んでください。", true); changeDue(v); });
-$("noDue").addEventListener("click", () => changeDue(""));
 
 if (!ref) { $("label").textContent = ""; say("リンクが正しくありません。LINE WORKS に届いたボタンから開いてください。", true); }
 else onSnapshot(ref, (snap) => {

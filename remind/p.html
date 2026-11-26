@@ -15,7 +15,7 @@
 <main>
   <div id="msg"></div>
   <div id="list"></div>
-  <p class="note">物件ごとに開いて、確認事項の日付・ひとこと、済の印、締め日の変更ができます。</p>
+  <p class="note">物件ごとに開いて、確認事項の日付・ひとこと、済の印を入れられます。</p>
 </main>
 
 <script type="module">
@@ -38,10 +38,9 @@ else onSnapshot(doc(db, "remindPeople", key), (snap) => {
   const p = snap.data(), rows = p.rows || [], today = todayStr();
   $("label").textContent = `${p.name}さん　未済 ${rows.length}件`;
   $("list").innerHTML = rows.length ? rows.map((r) => {
-    const od = isOverdue(r.due, today), td = r.due === today;
+    const od = false, td = false;   // 締め日は使わない
     return `<div class="card ${od ? "over" : ""}">
       <div class="ttl">${esc(r.property)} ${od ? '<span class="tag red">締め日過ぎ</span>' : td ? '<span class="tag red">今日締め</span>' : ""}</div>
-      <div class="sub">締め日：${r.due ? esc(dueLabel(r.due)) : "なし"}</div>
       <div class="items">
         ${(r.checks || []).length ? `<h3>確認事項</h3>${r.checks.map(itemHtml).join("")}` : ""}
         ${(r.todos || []).length ? `<h3>やること</h3>${r.todos.map(itemHtml).join("")}` : ""}
