@@ -20,6 +20,7 @@
   </div>
   <div id="msg"></div>
   <div id="content" hidden>
+    <nav class="tabs people" id="people"></nav>
     <nav class="tabs">
       <button id="tabNew" class="tab on">新しく送る</button>
       <button id="tabList" class="tab">一覧</button>
@@ -80,6 +81,29 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 let rooms = [], tasks = [], unsub = null;
 
+/* ---------- 人ごとのページ（永井設計／野田設計…）。選んだ人は送る相手と一覧の両方に効く ---------- */
+let person = "";
+try { person = localStorage.getItem("remindPerson") || ""; } catch { /* 覚えられなくても動く */ }
+function renderPeople() {
+  if (!rooms.some((r) => r.userId === person)) person = rooms[0] ? rooms[0].userId : "";
+  $("people").style.display = rooms.length < 2 ? "none" : "";   // .tabs が flex なので hidden 属性は効かない
+  $("people").innerHTML = rooms.map((r) => {
+    const n = tasks.filter((t) => t.toUserId === r.userId && t.status === "open").length;
+    return `<button class="tab ${r.userId === person ? "on" : ""}" data-person="${esc(r.userId)}">${esc(r.name)}設計${n ? `（${n}）` : ""}</button>`;
+  }).join("");
+}
+function setPerson(id) {
+  person = id;
+  try { localStorage.setItem("remindPerson", id); } catch { /* 無視 */ }
+  if ($("to").value !== id) { $("to").value = id; preview(); }
+  renderPeople();
+  renderList();
+}
+$("people").addEventListener("click", (e) => {
+  const b = e.target.closest("button[data-person]");
+  if (b) setPerson(b.dataset.person);
+});
+
 /* ---------- 入力 ---------- */
 function addLine(boxId, ph, val = "") {
   const wrap = document.createElement("div");
@@ -136,6 +160,7 @@ $("tpl").addEventListener("click", (e) => {
 });
 $("clearDue").addEventListener("click", () => { $("due").value = ""; preview(); });
 for (const id of ["to", "property", "due"]) $(id).addEventListener("input", preview);
+$("to").addEventListener("change", () => setPerson($("to").value));
 
 function resetForm() {
   $("property").value = ""; $("todos").innerHTML = ""; $("checks").innerHTML = ""; $("due").value = "";
@@ -195,6 +220,7 @@ function renderList() {
   const byPerson = new Map();
   for (const t of tasks) {
     if (!showDone && t.status === "done") continue;
+    if (rooms.length > 1 && t.toUserId !== person) continue;   // 選んでいる人のページだけ
     if (!byPerson.has(t.toName)) byPerson.set(t.toName, []);
     byPerson.get(t.toName).push(t);
   }
@@ -286,6 +312,8 @@ onAuthStateChanged(auth, async (user) => {
   $("to").innerHTML = rooms.length
     ? rooms.map((r) => `<option value="${esc(r.userId)}">${esc(r.name)}さん（${esc(r.roomTitle)}）</option>`).join("")
     : '<option value="">（送れる相手がまだいません）</option>';
+  renderPeople();
+  if (person) $("to").value = person;
   if (!$("todos").children.length) resetForm(); else preview();
   $("content").hidden = false;
   $("label").textContent = `送れる相手 ${rooms.length}人`;
@@ -293,6 +321,7 @@ onAuthStateChanged(auth, async (user) => {
     tasks = qs.docs.map((d) => ({ id: d.id, ...d.data() }));
     const open = tasks.filter((t) => t.status === "open").length;
     $("tabList").textContent = `一覧（未済 ${open}）`;
+    renderPeople();
     renderList();
     preview();
   }, (e) => { $("list").innerHTML = `<p class="err">一覧を読めませんでした（${esc(e.code)}）</p>`; });
