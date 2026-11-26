@@ -322,6 +322,11 @@ function refreshTo() {
   preview();
 }
 
+function say(t, err = false) {
+  $("msg").innerHTML = `<p class="${err ? "err" : "box"}">${esc(t)}</p>`;
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
 /* ---------- 一覧（人 → 物件） ---------- */
 function itemRow(t, kind, it, i) {
   const extra = [it.date ? dueLabel(it.date) : "", it.note].filter(Boolean).map(esc).join("　");
