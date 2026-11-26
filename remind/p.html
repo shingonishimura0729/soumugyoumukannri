@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex, nofollow">
 <title>未済のリマインド</title>
-<link rel="stylesheet" href="remind.css">
+<link rel="stylesheet" href="remind.css?v=2">
 </head>
 <body>
 <header>
@@ -22,7 +22,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
 import { getFirestore, doc, onSnapshot } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
 import { firebaseConfig } from "../assets/js/firebase-config.js";
-import { esc, dueLabel, isOverdue, todayStr, taskUrl, itemHtml } from "./remind.js";
+import { esc, dueLabel, isOverdue, todayStr, taskUrl, itemHtml } from "./remind.js?v=2";
 
 /*
  * 人ごとの未済一覧。毎朝のまとめのボタンから開く（?r=鍵）。

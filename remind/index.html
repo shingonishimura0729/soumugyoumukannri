@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex, nofollow">
 <title>設計リマインド</title>
-<link rel="stylesheet" href="remind.css">
+<link rel="stylesheet" href="remind.css?v=2">
 </head>
 <body>
 <header>
@@ -67,7 +67,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebas
 import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-auth.js";
 import { getFirestore, doc, getDoc, setDoc, updateDoc, deleteDoc, collection, onSnapshot } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
 import { firebaseConfig } from "../assets/js/firebase-config.js";
-import { esc, newKey, todayStr, dueLabel, isOverdue, taskUrl, TEMPLATE_CHECKS, itemHtml, newItem, allDone } from "./remind.js";
+import { esc, newKey, todayStr, dueLabel, isOverdue, taskUrl, TEMPLATE_CHECKS, itemHtml, newItem, allDone } from "./remind.js?v=2";
 
 /*
  * 西村さん専用：リマインドを作って送る／一覧で未済と答えを見る。

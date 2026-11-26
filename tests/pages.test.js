@@ -100,7 +100,7 @@ for (const page of PAGES) {
       for (const m of script.matchAll(
         /import\s*\{([^}]*)\}\s*from\s*"(\.[^"]+)"/g
       )) {
-        const available = exportsOf(resolve(dirname(file), m[2]));
+        const available = exportsOf(resolve(dirname(file), m[2].split("?")[0]));  // ?v=2 は版の印（キャッシュよけ）
         const wanted = m[1].split(",").map((s) => s.trim()).filter(Boolean);
         const gone = wanted.filter((name) => !available.has(name));
         assert.deepEqual(gone, [], `${m[2]} が export していない: ${gone.join(", ")}`);

@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex, nofollow">
 <title>リマインド</title>
-<link rel="stylesheet" href="remind.css">
+<link rel="stylesheet" href="remind.css?v=2">
 </head>
 <body>
 <header>
@@ -44,7 +44,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
 import { getFirestore, doc, onSnapshot, updateDoc } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
 import { firebaseConfig } from "../assets/js/firebase-config.js";
-import { esc, todayStr, dueLabel, isOverdue, allDone } from "./remind.js";
+import { esc, todayStr, dueLabel, isOverdue, allDone } from "./remind.js?v=2";
 
 /*
  * 受け手が開く1件（1物件）の画面。ログインなし・リンクの鍵（?k=）で開く。
