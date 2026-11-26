@@ -18,9 +18,13 @@
     <div class="ttl" id="property" style="font-size:20px"></div>
     <div class="sub" id="toWho"></div>
 
-    <div id="todoWrap"><h2>やること</h2><ul id="todos"></ul></div>
+    <div id="checkWrap">
+      <h2>確認事項</h2>
+      <p class="note">決まったら日付とひとことを入れて「保存」。終わったものは左の□に印を付けてください。</p>
+      <div id="checks"></div>
+    </div>
 
-    <div id="checkWrap"><h2>確認事項（答えを書いて「答えを送る」）</h2><div id="checks"></div></div>
+    <div id="todoWrap"><h2>やること</h2><div id="todos"></div></div>
 
     <h2>締め日</h2>
     <div id="dueNow"></div>
@@ -31,7 +35,7 @@
     </div>
     <p class="note">締め日を変えると、西村さんにも知らせが届きます。</p>
 
-    <h2>終わったら</h2>
+    <h2>まとめて</h2>
     <div id="doneArea"></div>
   </div>
 </main>
@@ -40,79 +44,130 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
 import { getFirestore, doc, onSnapshot, updateDoc } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
 import { firebaseConfig } from "../assets/js/firebase-config.js";
-import { esc, todayStr, dueLabel, isOverdue } from "./remind.js";
+import { esc, todayStr, dueLabel, isOverdue, allDone } from "./remind.js";
 
 /*
- * 受け手が開く1件の画面。ログインなし・リンクの鍵（?k=）で開く。
- * 変えられるのは 済・確認事項の答え・締め日 だけ（firestore.rules の publicEdit）。
- * 答えと締め日の変更は events に足し、PCが西村さんの個人トークへ知らせる。
+ * 受け手が開く1件（1物件）の画面。ログインなし・リンクの鍵（?k=）で開く。
+ * 変えられるのは 項目の■・確認事項の日付とひとこと・締め日・済 だけ（firestore.rules の publicEdit）。
+ * 確認事項の保存と締め日の変更は events に足し、PCが西村さんの個人トークへ知らせる。■は知らせない。
+ * 項目が全部■になったらカードは自動で「済」、1つでも□に戻れば「未済」。
  */
 const $ = (id) => document.getElementById(id);
 const key = new URLSearchParams(location.search).get("k") || "";
 const db = getFirestore(initializeApp(firebaseConfig));
 const ref = key ? doc(db, "remindTasks", key) : null;
 let t = null;
-const drafts = {};
+const drafts = {};   // 入力途中の答え { i: {date, note} }
 
-function say(s, err = false) { $("msg").innerHTML = s ? `<p class="${err ? "err" : "box"}">${esc(s)}</p>` : ""; }
+function say(s, err = false) {
+  $("msg").innerHTML = s ? `<p class="${err ? "err" : "box"}">${esc(s)}</p>` : "";
+  if (s) window.scrollTo({ top: 0, behavior: "smooth" });
+}
 
 function render() {
   $("label").textContent = t.status === "done" ? "済" : (t.due ? `締め日 ${dueLabel(t.due)}` : "締め日なし");
   $("property").textContent = t.property;
   $("toWho").textContent = `${t.toName}さんへ（${t.roomTitle}）`;
-  $("todoWrap").hidden = !(t.todos || []).length;
-  $("todos").innerHTML = (t.todos || []).map((x) => `<li>${esc(x)}</li>`).join("");
-  $("checkWrap").hidden = !(t.checks || []).length;
-  $("checks").innerHTML = (t.checks || []).map((c, i) => `<div class="card">
-      <div><b>${esc(c.q)}</b></div>
-      ${c.a ? `<div class="qa">送った答え：${esc(c.a)}</div>` : ""}
-      <textarea data-i="${i}" placeholder="答えを入力">${esc(drafts[i] ?? "")}</textarea>
-      <div class="row"><button class="primary" data-send="${i}">${c.a ? "答えを直して送る" : "答えを送る"}</button></div>
-    </div>`).join("");
-  for (const ta of document.querySelectorAll("textarea[data-i]")) ta.addEventListener("input", () => { drafts[ta.dataset.i] = ta.value; });
+
+  const checks = t.checks || [], todos = t.todos || [];
+  $("checkWrap").hidden = !checks.length;
+  $("checks").innerHTML = checks.map((c, i) => {
+    const d = drafts[i] || { date: c.date || "", note: c.note || "" };
+    return `<div class="card chk">
+      <input type="checkbox" data-kind="checks" data-i="${i}" ${c.done ? "checked" : ""} aria-label="済">
+      <div class="body">
+        <div><b>${esc(c.q)}</b>${c.date || c.note ? `<div class="sub">今の答え：${esc([dueLabel(c.date), c.note].filter(Boolean).join("　"))}</div>` : ""}</div>
+        <div class="ansrow">
+          <input type="date" data-date="${i}" value="${esc(d.date)}">
+          <input type="text" data-note="${i}" maxlength="200" placeholder="ひとこと（例：10時、引き渡し時に合わせて）" value="${esc(d.note)}">
+          <button class="primary" data-save="${i}">保存</button>
+        </div>
+      </div>
+    </div>`;
+  }).join("");
+
+  $("todoWrap").hidden = !todos.length;
+  $("todos").innerHTML = todos.map((x, i) => `<label class="card chk">
+      <input type="checkbox" data-kind="todos" data-i="${i}" ${x.done ? "checked" : ""}>
+      <div class="body">${esc(x.q)}</div></label>`).join("");
+
   const od = t.status === "open" && isOverdue(t.due);
   $("dueNow").innerHTML = t.due ? `<b>${esc(dueLabel(t.due))}</b>${od ? ' <span class="tag red">締め日過ぎ</span>' : ""}` : "なし（済になるまで毎朝お知らせします）";
   $("newDue").value = t.due || "";
   $("doneArea").innerHTML = t.status === "done"
     ? `<div class="donebar">済になっています</div><div class="row"><button id="reopen">まだ終わっていない（済を取り消す）</button></div>`
-    : `<button id="done" class="primary big">済にする</button>`;
-  if ($("done")) $("done").addEventListener("click", () => setDone(true));
-  if ($("reopen")) $("reopen").addEventListener("click", () => setDone(false));
+    : `<button id="done" class="primary big">全部終わった（済にする）</button>`;
+  if ($("done")) $("done").addEventListener("click", () => setAll(true));
+  if ($("reopen")) $("reopen").addEventListener("click", () => setAll(false));
 }
 
-async function setDone(done) {
-  const now = new Date().toISOString();
+const now = () => new Date().toISOString();
+
+/** 項目の■を付け外しする。全部■ならカードも済に */
+async function toggle(kind, i, done) {
+  const next = { ...t, [kind]: t[kind].map((x, j) => (j === i ? { ...x, done } : x)) };
+  const st = allDone(next) ? "done" : "open";
+  const n = now();
   try {
-    await updateDoc(ref, { status: done ? "done" : "open", doneAtISO: done ? now : "", updatedAtISO: now });
+    await updateDoc(ref, { [kind]: next[kind], status: st, doneAtISO: st === "done" ? n : "", updatedAtISO: n });
+    if (st === "done" && t.status !== "done") say("全部に印が付いたので、済にしました。ありがとうございます。");
+  } catch (e) { say(`できませんでした（${e.code || e.message}）。もう一度押してください。`, true); }
+}
+
+/** 「全部終わった」＝すべて■にして済。取り消しはカードだけ未済に戻す */
+async function setAll(done) {
+  const n = now();
+  const upd = { status: done ? "done" : "open", doneAtISO: done ? n : "", updatedAtISO: n };
+  if (done) {
+    upd.todos = (t.todos || []).map((x) => ({ ...x, done: true }));
+    upd.checks = (t.checks || []).map((x) => ({ ...x, done: true }));
+  }
+  try {
+    await updateDoc(ref, upd);
     say(done ? "済にしました。ありがとうございます。" : "済を取り消しました。");
   } catch (e) { say(`できませんでした（${e.code || e.message}）。もう一度押してください。`, true); }
 }
 
+document.addEventListener("change", (e) => {
+  const cb = e.target.closest('input[type=checkbox][data-kind]');
+  if (cb) toggle(cb.dataset.kind, Number(cb.dataset.i), cb.checked);
+});
+document.addEventListener("input", (e) => {
+  const el = e.target;
+  const i = el.dataset.date ?? el.dataset.note;
+  if (i === undefined) return;
+  const c = t.checks[Number(i)];
+  drafts[i] = drafts[i] || { date: c.date || "", note: c.note || "" };
+  if (el.dataset.date !== undefined) drafts[i].date = el.value; else drafts[i].note = el.value;
+});
+
 $("checks").addEventListener("click", async (e) => {
-  const b = e.target.closest("button[data-send]");
+  const b = e.target.closest("button[data-save]");
   if (!b) return;
-  const i = Number(b.dataset.send), text = String(drafts[i] ?? "").trim();
-  if (!text) return say("答えを入力してください。", true);
-  if (text.length > 500) return say("答えは500字までにしてください。", true);
-  const now = new Date().toISOString();
-  const checks = t.checks.map((c, j) => (j === i ? { q: c.q, a: text, aAtISO: now } : c));
-  const events = [...(t.events || []), { type: "answer", q: t.checks[i].q, text, atISO: now }].slice(-200);
+  const i = Number(b.dataset.save), c = t.checks[i];
+  const d = drafts[i] || { date: c.date || "", note: c.note || "" };
+  const note = String(d.note || "").trim();
+  if (!d.date && !note) return say("日付かひとことを入れてください。", true);
+  if (d.date === (c.date || "") && note === (c.note || "")) return say("今の答えと同じです。", true);
+  const n = now();
+  const checks = t.checks.map((x, j) => (j === i ? { ...x, date: d.date || "", note, atISO: n } : x));
+  const events = [...(t.events || []), { type: "answer", q: c.q, date: d.date || "", note, atISO: n }].slice(-200);
   b.disabled = true;
   try {
-    await updateDoc(ref, { checks, events, updatedAtISO: now });
+    await updateDoc(ref, { checks, events, updatedAtISO: n });
     delete drafts[i];
-    say("答えを送りました。西村さんに届きます。");
-  } catch (err) { say(`送れませんでした（${err.code || err.message}）。もう一度押してください。`, true); b.disabled = false; }
+    say(`「${c.q}」を保存しました。西村さんに届きます。`);
+  } catch (err) { say(`保存できませんでした（${err.code || err.message}）。もう一度押してください。`, true); b.disabled = false; }
 });
 
 async function changeDue(next) {
   if (next === (t.due || "")) return say("今と同じ締め日です。", true);
   if (next && next < todayStr()) return say("過去の日付にはできません。", true);
-  const now = new Date().toISOString();
-  const dueLog = [...(t.dueLog || []), { from: t.due || "", to: next, atISO: now }].slice(-50);
-  const events = [...(t.events || []), { type: "due", from: t.due || "", to: next, atISO: now }].slice(-200);
+  const n = now();
+  const dueLog = [...(t.dueLog || []), { from: t.due || "", to: next, atISO: n }].slice(-50);
+  const events = [...(t.events || []), { type: "due", from: t.due || "", to: next, atISO: n }].slice(-200);
   try {
-    await updateDoc(ref, { due: next, dueLog, events, updatedAtISO: now });
+    await updateDoc(ref, { due: next, dueLog, events, updatedAtISO: n });
     say(next ? `締め日を ${dueLabel(next)} に変えました。西村さんに届きます。` : "締め日をなしにしました。西村さんに届きます。");
   } catch (e) { say(`変えられませんでした（${e.code || e.message}）`, true); }
 }
@@ -124,7 +179,8 @@ else onSnapshot(ref, (snap) => {
   if (!snap.exists()) { $("label").textContent = ""; $("content").hidden = true; say("このリマインドは見つかりません（取り消された可能性があります）。", true); return; }
   t = snap.data();
   $("content").hidden = false;
-  if (document.activeElement && document.activeElement.tagName === "TEXTAREA") return;  // 入力中は描き直さない
+  const a = document.activeElement;
+  if (a && (a.type === "text" || a.type === "date")) return;  // 入力中は描き直さない
   render();
 }, (e) => { $("label").textContent = ""; say(`読み込めませんでした（${e.code}）`, true); });
 </script>

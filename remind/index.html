@@ -31,15 +31,18 @@
         <span class="note" id="roomNote"></span>
       </label>
       <label class="f">物件名
-        <input id="property" maxlength="100" placeholder="例：〇〇邸（外構）" autocomplete="off">
+        <input id="property" maxlength="100" placeholder="例：〇〇邸（外構）" autocomplete="off" list="propList">
+        <datalist id="propList"></datalist>
       </label>
+      <div id="existing"></div>
+      <div class="f">確認事項（相手が日付とひとことで答える）
+        <div class="tpl" id="tpl"></div>
+        <div id="checks"></div>
+        <button id="addCheck" type="button">＋ 確認事項を足す</button>
+      </div>
       <div class="f">やること
         <div id="todos"></div>
         <button id="addTodo" type="button">＋ やることを足す</button>
-      </div>
-      <div class="f">確認事項（相手に答えを書いてもらう）
-        <div id="checks"></div>
-        <button id="addCheck" type="button">＋ 確認事項を足す</button>
       </div>
       <label class="f">締め日（無ければ空のまま＝済になるまで毎朝知らせる）
         <span class="row"><input id="due" type="date"><button id="clearDue" type="button">空にする</button></span>
@@ -64,7 +67,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebas
 import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-auth.js";
 import { getFirestore, doc, getDoc, setDoc, updateDoc, deleteDoc, collection, onSnapshot } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
 import { firebaseConfig } from "../assets/js/firebase-config.js";
-import { esc, newKey, todayStr, dueLabel, isOverdue, taskUrl } from "./remind.js";
+import { esc, newKey, todayStr, dueLabel, isOverdue, taskUrl, TEMPLATE_CHECKS, itemHtml, newItem, allDone } from "./remind.js";
 
 /*
  * 西村さん専用：リマインドを作って送る／一覧で未済と答えを見る。
@@ -87,46 +90,90 @@ function addLine(boxId, ph, val = "") {
   $(boxId).appendChild(wrap);
 }
 const lines = (boxId) => [...$(boxId).querySelectorAll("input")].map((i) => i.value.trim()).filter(Boolean);
+const PH_TODO = "例：ブロック数量の拾い出し", PH_CHECK = "例：門柱の位置はお客様了承済みか";
+
+/** 同じ相手・同じ物件のカード（あれば項目をそこへ足す） */
+function existingCard() {
+  const to = $("to").value, prop = $("property").value.trim();
+  if (!to || !prop) return null;
+  return tasks.find((t) => t.toUserId === to && t.property.trim() === prop) || null;
+}
 
 function preview() {
   const r = rooms.find((x) => x.userId === $("to").value);
+  $("propList").innerHTML = tasks.filter((t) => r && t.toUserId === r.userId)
+    .map((t) => `<option value="${esc(t.property)}"></option>`).join("");
   const todos = lines("todos"), checks = lines("checks"), due = $("due").value;
-  if (!r) { $("preview").textContent = ""; return; }
-  let t = `【リマインド】${r.name}さんへ\n物件：${$("property").value.trim() || "（物件名）"}\n`;
-  if (todos.length) t += "■やること\n" + todos.map((x) => "・" + x).join("\n") + "\n";
-  if (checks.length) t += "■確認事項\n" + checks.map((x) => "・" + x).join("\n") + "\n";
-  t += due ? `締め日：${dueLabel(due)}\n` : "締め日：なし（済になるまで毎朝お知らせ）\n";
-  t += "→ 済・答え・日付変更はボタンから";
-  $("preview").textContent = "送る内容の見本（" + r.roomTitle + "）\n\n" + t;
+  if (!r) { $("preview").textContent = ""; $("existing").innerHTML = ""; return; }
   $("roomNote").textContent = "送り先：" + r.roomTitle;
+  const ex = existingCard();
+  $("existing").innerHTML = ex
+    ? `<div class="addnote">この物件のカードがあります。送ると<b>同じカードに項目を足し</b>、部屋へは足した分だけ知らせます。${ex.status === "done" ? "（済のカードは未済に戻ります）" : ""}
+        <div class="items">${[...(ex.checks || []), ...(ex.todos || [])].map(itemHtml).join("")}</div></div>`
+    : "";
+  const prop = $("property").value.trim() || "（物件名）";
+  let t = ex ? `【リマインド】${r.name}さんへ（項目を追加）\n物件：${prop}\n` : `【リマインド】${r.name}さんへ\n物件：${prop}\n`;
+  if (checks.length) t += "■確認事項\n" + checks.map((x) => "□" + x).join("\n") + "\n";
+  if (todos.length) t += "■やること\n" + todos.map((x) => "□" + x).join("\n") + "\n";
+  if (!ex || due) t += due ? `締め日：${dueLabel(due)}\n` : "締め日：なし（済になるまで毎朝お知らせ）\n";
+  t += "→ 日付・ひとこと・済はボタンから";
+  $("preview").textContent = "送る内容の見本（" + r.roomTitle + "）\n\n" + t;
 }
 
-$("addTodo").addEventListener("click", () => addLine("todos", "例：ブロック数量の拾い出し"));
-$("addCheck").addEventListener("click", () => addLine("checks", "例：門柱の位置はお客様了承済みか"));
+$("addTodo").addEventListener("click", () => addLine("todos", PH_TODO));
+$("addCheck").addEventListener("click", () => addLine("checks", PH_CHECK));
+$("tpl").innerHTML = `<button type="button" id="tplAll">ひな形5つを全部入れる</button>` +
+  TEMPLATE_CHECKS.map((q, i) => `<button type="button" data-tpl="${i}">＋${esc(q)}</button>`).join("");
+$("tpl").addEventListener("click", (e) => {
+  const b = e.target.closest("button");
+  if (!b) return;
+  const have = new Set(lines("checks"));
+  const add = b.id === "tplAll" ? TEMPLATE_CHECKS : [TEMPLATE_CHECKS[Number(b.dataset.tpl)]];
+  // 空の欄は先に片づける
+  for (const w of [...$("checks").querySelectorAll(".line")]) if (!w.querySelector("input").value.trim()) w.remove();
+  for (const q of add) if (!have.has(q)) addLine("checks", PH_CHECK, q);
+  preview();
+});
 $("clearDue").addEventListener("click", () => { $("due").value = ""; preview(); });
 for (const id of ["to", "property", "due"]) $(id).addEventListener("input", preview);
+
+function resetForm() {
+  $("property").value = ""; $("todos").innerHTML = ""; $("checks").innerHTML = ""; $("due").value = "";
+  addLine("checks", PH_CHECK); addLine("todos", PH_TODO);
+  preview();
+}
 
 $("send").addEventListener("click", async () => {
   const r = rooms.find((x) => x.userId === $("to").value);
   const property = $("property").value.trim(), todos = lines("todos"), checks = lines("checks"), due = $("due").value;
   if (!r) return say("相手を選んでください。", true);
   if (!property) return say("物件名を入れてください。", true);
-  if (!todos.length && !checks.length) return say("やることか確認事項を1つは入れてください。", true);
+  if (!todos.length && !checks.length) return say("確認事項かやることを1つは入れてください。", true);
   if (due && due < todayStr()) return say("締め日が過去の日付です。", true);
+  const ex = existingCard();
   $("send").disabled = true;
   try {
     const now = new Date().toISOString();
-    const key = newKey();
-    await setDoc(doc(db, "remindTasks", key), {
-      toName: r.name, toUserId: r.userId, channelId: r.channelId, roomTitle: r.roomTitle,
-      property, todos, checks: checks.map((q) => ({ q, a: "", aAtISO: "" })),
-      due, status: "open", doneAtISO: "", createdAtISO: now, updatedAtISO: now,
-      sentAtISO: "", sentError: "", dueLog: [], events: [], notified: 0,
-    });
-    $("property").value = ""; $("todos").innerHTML = ""; $("checks").innerHTML = ""; $("due").value = "";
-    addLine("todos", "例：ブロック数量の拾い出し"); addLine("checks", "例：門柱の位置はお客様了承済みか");
-    preview();
-    say(`${r.name}さんあてに受け付けました。1〜2分で「${r.roomTitle}」に出ます。`);
+    if (ex) {
+      const upd = {
+        checks: [...(ex.checks || []), ...checks.map((q) => newItem(q, now))],
+        todos: [...(ex.todos || []), ...todos.map((q) => newItem(q, now))],
+        status: "open", doneAtISO: "", resend: true, updatedAtISO: now,
+      };
+      if (upd.checks.length > 40 || upd.todos.length > 40) throw new Error("1つの物件に入れられる項目は、それぞれ40までです");
+      if (due) upd.due = due;
+      await updateDoc(doc(db, "remindTasks", ex.id), upd);
+      say(`「${property}」のカードに ${checks.length + todos.length}項目を足しました。1〜2分で「${r.roomTitle}」に出ます。`);
+    } else {
+      await setDoc(doc(db, "remindTasks", newKey()), {
+        toName: r.name, toUserId: r.userId, channelId: r.channelId, roomTitle: r.roomTitle,
+        property, todos: todos.map((q) => newItem(q, now)), checks: checks.map((q) => newItem(q, now)),
+        due, status: "open", doneAtISO: "", createdAtISO: now, updatedAtISO: now,
+        sentAtISO: "", sentError: "", resend: false, dueLog: [], events: [], notified: 0,
+      });
+      say(`${r.name}さんあてに受け付けました。1〜2分で「${r.roomTitle}」に出ます。`);
+    }
+    resetForm();
   } catch (e) {
     say(`送れませんでした（${e.code || e.message}）。もう一度押してください。`, true);
   } finally { $("send").disabled = false; }
@@ -137,7 +184,12 @@ function say(t, err = false) {
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
-/* ---------- 一覧 ---------- */
+/* ---------- 一覧（人 → 物件） ---------- */
+function itemRow(t, kind, it, i) {
+  const extra = [it.date ? dueLabel(it.date) : "", it.note].filter(Boolean).map(esc).join("　");
+  return `<div class="it ${it.done ? "ok" : ""}"><button class="tog mk" data-tog="${esc(t.id)}" data-kind="${kind}" data-i="${i}" title="印を付け外し">${it.done ? "■" : "□"}</button><span class="q">${esc(it.q)}</span>${extra ? `<span class="ans">${extra}</span>` : ""}</div>`;
+}
+
 function renderList() {
   const showDone = $("showDone").checked;
   const byPerson = new Map();
@@ -149,20 +201,26 @@ function renderList() {
   if (!byPerson.size) { $("list").innerHTML = "<p>未済のリマインドはありません。</p>"; return; }
   let html = "";
   for (const [name, arr] of byPerson) {
-    arr.sort((a, b) => (a.status > b.status ? 1 : a.status < b.status ? -1 : (a.due || "9999") < (b.due || "9999") ? -1 : 1));
-    const open = arr.filter((t) => t.status === "open").length;
-    html += `<h2>${esc(name)}さん（未済 ${open}件）</h2>`;
+    arr.sort((a, b) => (a.status !== b.status ? (a.status === "open" ? -1 : 1)
+      : (a.due || "9999") !== (b.due || "9999") ? ((a.due || "9999") < (b.due || "9999") ? -1 : 1)
+      : (a.createdAtISO < b.createdAtISO ? -1 : 1)));
+    const openItems = arr.reduce((n, t) => n + [...(t.checks || []), ...(t.todos || [])].filter((x) => !x.done).length, 0);
+    html += `<h2>${esc(name)}さん（物件 ${arr.filter((t) => t.status === "open").length}件・未確定 ${openItems}項目）</h2>`;
     for (const t of arr) {
       const od = t.status === "open" && isOverdue(t.due);
-      const sent = t.sentAtISO ? "" : (t.sentError ? `<span class="tag red">送れていない：${esc(t.sentError)}</span>` : '<span class="tag">送信待ち</span>');
+      const sent = t.sentError ? `<span class="tag red">送れていない：${esc(t.sentError)}</span>`
+        : (!t.sentAtISO || t.resend) ? '<span class="tag">送信待ち</span>' : "";
+      const checks = t.checks || [], todos = t.todos || [];
       html += `<div class="card ${t.status === "done" ? "done" : ""} ${od ? "over" : ""}">
         <div class="ttl">${esc(t.property)} ${t.status === "done" ? '<span class="tag green">済</span>' : ""} ${od ? '<span class="tag red">締め日過ぎ</span>' : ""} ${sent}</div>
         <div class="sub">締め日：${t.due ? esc(dueLabel(t.due)) : "なし"}${(t.dueLog || []).length ? `（変更 ${t.dueLog.length}回）` : ""}</div>
-        ${(t.todos || []).length ? "<ul>" + t.todos.map((x) => `<li>${esc(x)}</li>`).join("") + "</ul>" : ""}
-        ${(t.checks || []).map((c) => `<div class="qa"><b>確認：</b>${esc(c.q)}<br>${c.a ? `<b>答え：</b>${esc(c.a)}` : '<span class="sub">まだ答えなし</span>'}</div>`).join("")}
+        <div class="items">
+          ${checks.length ? `<h3>確認事項</h3>${checks.map((c, i) => itemRow(t, "checks", c, i)).join("")}` : ""}
+          ${todos.length ? `<h3>やること</h3>${todos.map((c, i) => itemRow(t, "todos", c, i)).join("")}` : ""}
+        </div>
         <div class="row">
           <a class="btnlike" href="${esc(taskUrl(t.id))}" target="_blank" rel="noopener">開く</a>
-          ${t.status === "open" ? `<button data-act="done" data-id="${esc(t.id)}">済にする</button>` : `<button data-act="reopen" data-id="${esc(t.id)}">未済に戻す</button>`}
+          ${t.status === "open" ? "" : `<button data-act="reopen" data-id="${esc(t.id)}">未済に戻す</button>`}
           <button data-act="del" data-id="${esc(t.id)}" class="danger">消す</button>
         </div>
       </div>`;
@@ -172,11 +230,19 @@ function renderList() {
 }
 $("showDone").addEventListener("change", renderList);
 $("list").addEventListener("click", async (e) => {
+  const tg = e.target.closest("button[data-tog]");
   const b = e.target.closest("button[data-act]");
-  if (!b) return;
-  const id = b.dataset.id, now = new Date().toISOString();
+  const now = new Date().toISOString();
   try {
-    if (b.dataset.act === "done") await updateDoc(doc(db, "remindTasks", id), { status: "done", doneAtISO: now, updatedAtISO: now });
+    if (tg) {
+      const t = tasks.find((x) => x.id === tg.dataset.tog), kind = tg.dataset.kind, i = Number(tg.dataset.i);
+      const next = { ...t, [kind]: t[kind].map((x, j) => (j === i ? { ...x, done: !x.done } : x)) };
+      const st = allDone(next) ? "done" : "open";
+      await updateDoc(doc(db, "remindTasks", t.id), { [kind]: next[kind], status: st, doneAtISO: st === "done" ? now : "", updatedAtISO: now });
+      return;
+    }
+    if (!b) return;
+    const id = b.dataset.id;
     if (b.dataset.act === "reopen") await updateDoc(doc(db, "remindTasks", id), { status: "open", doneAtISO: "", updatedAtISO: now });
     if (b.dataset.act === "del") {
       const t = tasks.find((x) => x.id === id);
@@ -220,8 +286,7 @@ onAuthStateChanged(auth, async (user) => {
   $("to").innerHTML = rooms.length
     ? rooms.map((r) => `<option value="${esc(r.userId)}">${esc(r.name)}さん（${esc(r.roomTitle)}）</option>`).join("")
     : '<option value="">（送れる相手がまだいません）</option>';
-  if (!$("todos").children.length) { addLine("todos", "例：ブロック数量の拾い出し"); addLine("checks", "例：門柱の位置はお客様了承済みか"); }
-  preview();
+  if (!$("todos").children.length) resetForm(); else preview();
   $("content").hidden = false;
   $("label").textContent = `送れる相手 ${rooms.length}人`;
   unsub = onSnapshot(collection(db, "remindTasks"), (qs) => {
@@ -229,6 +294,7 @@ onAuthStateChanged(auth, async (user) => {
     const open = tasks.filter((t) => t.status === "open").length;
     $("tabList").textContent = `一覧（未済 ${open}）`;
     renderList();
+    preview();
   }, (e) => { $("list").innerHTML = `<p class="err">一覧を読めませんでした（${esc(e.code)}）</p>`; });
 });
 </script>

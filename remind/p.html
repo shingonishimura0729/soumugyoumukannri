@@ -15,14 +15,14 @@
 <main>
   <div id="msg"></div>
   <div id="list"></div>
-  <p class="note">1件ずつ開いて、済・確認事項の答え・締め日の変更ができます。</p>
+  <p class="note">物件ごとに開いて、確認事項の日付・ひとこと、済の印、締め日の変更ができます。</p>
 </main>
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
 import { getFirestore, doc, onSnapshot } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
 import { firebaseConfig } from "../assets/js/firebase-config.js";
-import { esc, dueLabel, isOverdue, todayStr, taskUrl } from "./remind.js";
+import { esc, dueLabel, isOverdue, todayStr, taskUrl, itemHtml } from "./remind.js";
 
 /*
  * 人ごとの未済一覧。毎朝のまとめのボタンから開く（?r=鍵）。
@@ -41,9 +41,12 @@ else onSnapshot(doc(db, "remindPeople", key), (snap) => {
     const od = isOverdue(r.due, today), td = r.due === today;
     return `<div class="card ${od ? "over" : ""}">
       <div class="ttl">${esc(r.property)} ${od ? '<span class="tag red">締め日過ぎ</span>' : td ? '<span class="tag red">今日締め</span>' : ""}</div>
-      <div class="sub">締め日：${r.due ? esc(dueLabel(r.due)) : "なし"}${r.openChecks ? `　答えていない確認事項 ${r.openChecks}件` : ""}</div>
-      ${(r.todos || []).length ? "<ul>" + r.todos.map((x) => `<li>${esc(x)}</li>`).join("") + "</ul>" : ""}
-      <div class="row"><a class="btnlike" href="${esc(taskUrl(r.k))}">開く（済・答え・日付変更）</a></div>
+      <div class="sub">締め日：${r.due ? esc(dueLabel(r.due)) : "なし"}</div>
+      <div class="items">
+        ${(r.checks || []).length ? `<h3>確認事項</h3>${r.checks.map(itemHtml).join("")}` : ""}
+        ${(r.todos || []).length ? `<h3>やること</h3>${r.todos.map(itemHtml).join("")}` : ""}
+      </div>
+      <div class="row"><a class="btnlike" href="${esc(taskUrl(r.k))}">開く（日付・ひとこと・済）</a></div>
     </div>`;
   }).join("") : "<p>未済のリマインドはありません。</p>";
 }, (e) => { $("msg").innerHTML = `<p class="err">読み込めませんでした（${esc(e.code)}）</p>`; });

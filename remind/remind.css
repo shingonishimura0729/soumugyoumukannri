@@ -40,3 +40,20 @@ textarea { width: 100%; min-height: 64px; resize: vertical; line-height: 1.6; }
 .tag.red { background: var(--red); color: #fff; }
 .tag.green { background: #2e6b2e; color: #fff; }
 .donebar { background: #eef7ee; color: #2e6b2e; border-radius: 10px; padding: 10px 14px; font-weight: 700; }
+.it { display: grid; grid-template-columns: 1.4em auto 1fr; gap: 0 8px; padding: 4px 0; border-bottom: 1px dotted #e3e5dc; font-size: 15px; }
+.it:last-child { border-bottom: 0; }
+.it .mk { color: var(--green); font-weight: 700; }
+.it .ans { color: #333; text-align: right; }
+.it.ok { color: #999; }
+.it.ok .ans { color: #999; }
+.items { margin-top: 6px; }
+.items h3 { font-size: 13px; color: var(--sub); margin: 8px 0 2px; font-weight: 400; }
+.tpl { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; }
+.tpl button { font-size: 13px; padding: 4px 10px; font-weight: 400; }
+.chk { display: flex; gap: 10px; align-items: flex-start; }
+.chk input[type=checkbox] { width: 24px; height: 24px; margin-top: 3px; flex: none; }
+.chk .body { flex: 1; }
+.ansrow { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+.ansrow input[type=text] { flex: 1; min-width: 140px; }
+.it button.tog { all: unset; cursor: pointer; color: var(--green); font-weight: 700; }
+.addnote { background: #fff8e5; border: 1px solid #e8d48a; border-radius: 10px; padding: 8px 12px; font-size: 14px; margin-top: 6px; }

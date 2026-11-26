@@ -180,7 +180,9 @@ service cloud.firestore {
      *   remindTasks/{鍵}  … 1件のリマインド。鍵は推測できない長さの乱数で、設計共有LINEに貼るリンクに入る
      *     作る・消す：西村さん（会社のGoogleでログイン）だけ
      *     見る：鍵を知っている人なら誰でも（部屋の全員が見てよい、と本人が決めた）
-     *     受け手が変えてよいのは 済・確認事項の答え・締め日・その記録 だけ
+     *     1物件＝1件。項目（やること・確認事項）は {q, done, date, note, addedAtISO, atISO}
+     *     受け手が変えてよいのは 項目の■・確認事項の日付とひとこと・締め日・済・その記録 だけ（項目の数は変えられない）
+     *     西村さんが同じ物件に項目を足すと resend=true になり、PCが足した分だけ部屋へ知らせる
      *     PC（lw_report/remind.py。西村マインドと同じ専用アカウント）は送った印と知らせた印を書く
      *   remindRooms/main   … 相手と部屋の一覧（PCが作る）。見るのは西村さんとPCだけ
      *   remindPeople/{鍵}  … 人ごとの未済一覧（PCが作る）。毎朝のまとめのリンクで開く
@@ -198,15 +200,15 @@ service cloud.firestore {
         return d.keys().hasOnly([
                  'toName', 'toUserId', 'channelId', 'roomTitle', 'property', 'todos', 'checks',
                  'due', 'status', 'doneAtISO', 'createdAtISO', 'updatedAtISO',
-                 'sentAtISO', 'sentError', 'dueLog', 'events', 'notified'
+                 'sentAtISO', 'sentError', 'resend', 'dueLog', 'events', 'notified'
                ])
           && d.toName is string && d.toName.size() <= 40
           && d.toUserId is string && d.toUserId.size() <= 64
           && d.channelId is string && d.channelId.size() <= 64
           && d.roomTitle is string && d.roomTitle.size() <= 80
           && d.property is string && d.property.size() >= 1 && d.property.size() <= 100
-          && d.todos is list && d.todos.size() <= 20
-          && d.checks is list && d.checks.size() <= 20
+          && d.todos is list && d.todos.size() <= 40
+          && d.checks is list && d.checks.size() <= 40
           && (d.todos.size() + d.checks.size()) >= 1
           && d.due is string && (d.due.size() == 0 || d.due.size() == 10)
           && d.status in ['open', 'done']
@@ -215,6 +217,7 @@ service cloud.firestore {
           && d.updatedAtISO is string && d.updatedAtISO.size() <= 32
           && d.sentAtISO is string && d.sentAtISO.size() <= 32
           && d.sentError is string && d.sentError.size() <= 300
+          && d.resend is bool
           && d.dueLog is list && d.dueLog.size() <= 50
           && d.events is list && d.events.size() <= 200
           && d.notified is int;
@@ -222,9 +225,10 @@ service cloud.firestore {
       function publicEdit() {
         let d = request.resource.data;
         return d.diff(resource.data).affectedKeys()
-                 .hasOnly(['status', 'doneAtISO', 'checks', 'due', 'dueLog', 'events', 'updatedAtISO'])
+                 .hasOnly(['status', 'doneAtISO', 'todos', 'checks', 'due', 'dueLog', 'events', 'updatedAtISO'])
           && shapeOk(d)
           && d.checks.size() == resource.data.checks.size()
+          && d.todos.size() == resource.data.todos.size()
           && d.events.size() >= resource.data.events.size();
       }
 
@@ -235,6 +239,7 @@ service cloud.firestore {
         && shapeOk(request.resource.data)
         && request.resource.data.sentAtISO == ''
         && request.resource.data.status == 'open'
+        && request.resource.data.resend == false
         && request.resource.data.notified == 0
         && request.resource.data.events.size() == 0;
       allow update: if ((isOwnerR() || isPcR()) && shapeOk(request.resource.data)) || publicEdit();

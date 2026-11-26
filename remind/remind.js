@@ -33,3 +33,25 @@ export function dueLabel(due) {
 export const isOverdue = (due, today = todayStr()) => !!due && due < today;
 
 export const taskUrl = (key) => `${BASE}t.html?k=${key}`;
+
+/** よく使う確認事項（押すと一度に入る）。物件名や人の名前は書かない */
+export const TEMPLATE_CHECKS = ["ｶｰﾎﾟｰﾄ完了検査", "支給品確認", "植栽施工", "FF実施日", "完了立会検査"];
+
+/** 2026-12-04 → 12/4（金） */
+export const dateLabel = (d) => (d ? dueLabel(d) : "");
+
+/** 1項目を「□ 項目　12/4（金）　ひとこと」の1行の HTML にする */
+export function itemHtml(it) {
+  const mark = it.done ? "■" : "□";
+  const extra = [dateLabel(it.date), it.note].filter(Boolean).map(esc).join("　");
+  return `<div class="it ${it.done ? "ok" : ""}"><span class="mk">${mark}</span><span class="q">${esc(it.q)}</span>${extra ? `<span class="ans">${extra}</span>` : ""}</div>`;
+}
+
+/** 項目の新しい形 */
+export const newItem = (q, now) => ({ q, done: false, date: "", note: "", addedAtISO: now, atISO: "" });
+
+/** やること・確認事項がすべて■か（1つも無ければ false） */
+export function allDone(t) {
+  const all = [...(t.todos || []), ...(t.checks || [])];
+  return all.length > 0 && all.every((x) => x.done);
+}
