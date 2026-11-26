@@ -68,7 +68,7 @@ service cloud.firestore {
      *   見る：文書のIDを知っている人なら誰でも。社外の渡邉樹苗園さんにもリンクで見てもらうため。
      *         IDは推測できない長さの乱数。renrakuWeeks と同じく `list` は絶対に許さない
      *   書く：・会社のPC（植栽ﾁｪｯｸ\sync.mjs）の専用アカウント … リストと状態を作り直す
-     *         ・会社の Google アカウント（@archigarden.net）でログインしたスタッフ … チェック・メモ・更新の依頼だけ
+     *         ・会社の Google アカウント（@archigarden.net または @archigarden.co.jp）でログインしたスタッフ … チェック・メモ・更新の依頼だけ
      *
      * 専用アカウントのメール／パスワードでのログインは「誰でも作れる」ので、
      * スタッフかどうかは**Googleでログインしていること**まで確かめる。
@@ -81,7 +81,7 @@ service cloud.firestore {
         return request.auth != null
           && request.auth.token.firebase.sign_in_provider == 'google.com'
           && request.auth.token.email_verified == true
-          && request.auth.token.email.matches('.*@archigarden[.]net$');
+          && request.auth.token.email.matches('.*@archigarden[.](net|co[.]jp)$');
       }
       function staffEdit() {
         let d = request.resource.data;
@@ -114,7 +114,7 @@ service cloud.firestore {
       allow create: if request.auth != null
         && request.auth.token.firebase.sign_in_provider == 'google.com'
         && request.auth.token.email_verified == true
-        && request.auth.token.email.matches('.*@archigarden[.]net$')
+        && request.auth.token.email.matches('.*@archigarden[.](net|co[.]jp)$')
         && fileId.size() >= 24 && fileId.size() <= 48
         && request.resource.data.keys().hasOnly(['b64', 'n', 'of', 'by', 'atISO'])
         && request.resource.data.b64 is string && request.resource.data.b64.size() <= 1000000
@@ -133,7 +133,7 @@ service cloud.firestore {
         return request.auth != null
           && request.auth.token.firebase.sign_in_provider == 'google.com'
           && request.auth.token.email_verified == true
-          && request.auth.token.email.matches('.*@archigarden[.]net$');
+          && request.auth.token.email.matches('.*@archigarden[.](net|co[.]jp)$');
       }
       allow get: if true;
       allow create, update: if isStaffG()

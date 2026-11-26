@@ -336,7 +336,7 @@ import { openPdf, prefetchPdf } from "./pdf.js";
  *   props.{p…}      = { added:true, name, work, prep, contractor, by, atISO } … 画面で追加した邸（work/prep は YYYY-MM-DD）
  *
  * 見る：URL の ?b=（ボードのID）を知っている人なら誰でも（渡邉樹苗園さんもログインなしで見られる）
- * 書く：会社の Google アカウント（@archigarden.net）でログインした人だけ。守りは firestore.rules にある
+ * 書く：会社の Google アカウント（@archigarden.net または @archigarden.co.jp）でログインした人だけ。守りは firestore.rules にある
  * お客様名などはコードに書かない（公開リポジトリのため）。すべて Firebase から読む。
  */
 const $ = (id) => document.getElementById(id);
@@ -352,7 +352,7 @@ let board = null, user = null;
  */
 let draft = null, pending = false, inlineEdit = false; // inlineEdit＝一覧表のマスで業者名を入力中（その間は描き直さない）
 
-const STAFF = /@archigarden\.net$/i;
+const STAFF = /@archigarden\.(net|co\.jp)$/i; // .net の会社アカウントと、@archigarden.co.jp で作った Google アカウント（11-26 本人指示：全員対象）
 const canWrite = () => !!(user && user.email && STAFF.test(user.email));
 const shortName = (u) => (u.displayName || u.email || "").split(/[\s@]/)[0];
 const hhmm = (iso) => { if (!iso) return ""; const d = new Date(iso); return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`; };
@@ -386,7 +386,7 @@ onAuthStateChanged(auth, (u) => {
 });
 $("login").onclick = async () => {
   const p = new GoogleAuthProvider();
-  p.setCustomParameters({ hd: "archigarden.net", prompt: "select_account" });
+  p.setCustomParameters({ prompt: "select_account" }); // hd は1つのドメインしか指定できないので外した。.co.jp も通すため。守りは STAFF と firestore.rules
   try { await signInWithPopup(auth, p); } catch (e) { if (e.code !== "auth/popup-closed-by-user") alert("ログインできませんでした：" + e.code); }
 };
 $("refresh").onclick = async () => {
@@ -859,7 +859,7 @@ function render() {
   $("guide").innerHTML = st.state === "error" ? `<span class="err">更新に失敗しました：${esc(st.message)}</span>`
     : !user ? "見るだけならこのままで大丈夫です。チェックや手直しをする人は「ログインしてチェック」から会社の Google アカウントでログインしてください。"
     : canWrite() ? ""
-    : '<span class="err">このアカウントではチェックを付けられません。会社のアカウント（@archigarden.net）でログインし直してください。</span>';
+    : '<span class="err">このアカウントではチェックを付けられません。会社のアカウント（@archigarden.net または @archigarden.co.jp）でログインし直してください。</span>';
 
   $("addProp").style.display = canWrite() ? "" : "none";
   for (const b of document.querySelectorAll(".seg button")) b.classList.toggle("on", b.dataset.view === $("view").value);
